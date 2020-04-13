@@ -653,9 +653,6 @@ def loadSelectExport(window):
                         alreadyDoneDict[node.tag] = node.text
                 except FileNotFoundError:
                     alreadyDoneDict = {}
-                if varIsNameTODO.get():
-                    writes = "\n".join([text.replace("{$TODO}", "TODO")
-                                        for tag, text in values if tag in includes and text[text.find('</')+2:-2] not in alreadyDefined])
                 else:
                     writes = []
                     for tag, text in values:
@@ -664,7 +661,10 @@ def loadSelectExport(window):
                                 writes.append(text.replace("{$TODO}", alreadyDoneDict[text[text.find('</')+2:-2]]))
                                 del alreadyDoneDict[text[text.find('</')+2:-2]]
                             except KeyError:
-                                writes.append(text.replace("{$TODO}", text[7:text.find('-->\n')-1]))
+                                if varIsNameTODO.get():
+                                    writes.append(text.replace("{$TODO}", "TODO"))
+                                else:
+                                    writes.append(text.replace("{$TODO}", text[7:text.find('-->\n')-1]))
                     if alreadyDoneDict:
                         writes.append("\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 -->\n\n")
                         for tag, text in alreadyDoneDict.items():
