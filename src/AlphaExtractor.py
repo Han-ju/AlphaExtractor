@@ -7,7 +7,7 @@ import glob, os, time
 
 EXTRACTABLE_DIRS = ["Patches", "Defs"]
 CONFIG_VERSION = 1
-EXTRACTOR_VERSION = 0.74
+EXTRACTOR_VERSION = "0.7.5"
 
 class EntryHint(Entry):
     def __init__(self, master=None, hint="", color='grey'):
@@ -42,7 +42,59 @@ class EntryHint(Entry):
         if not self.get():
             self.put_hint()
 
-    
+class CreateToolTip(object):
+    """
+    create a tooltip for a given widget
+    """
+    def __init__(self, widget, text='widget info'):
+        self.waittime = 500     #miliseconds
+        self.wraplength = 180   #pixels
+        self.widget = widget
+        self.text = text
+        self.widget.bind("<Enter>", self.enter)
+        self.widget.bind("<Leave>", self.leave)
+        self.widget.bind("<ButtonPress>", self.leave)
+        self.id = None
+        self.tw = None
+
+    def enter(self, event=None):
+        self.schedule()
+
+    def leave(self, event=None):
+        self.unschedule()
+        self.hidetip()
+
+    def schedule(self):
+        self.unschedule()
+        self.id = self.widget.after(self.waittime, self.showtip)
+
+    def unschedule(self):
+        id = self.id
+        self.id = None
+        if id:
+            self.widget.after_cancel(id)
+
+    def showtip(self, event=None):
+        x = y = 0
+        x, y, cx, cy = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 20
+        # creates a toplevel window
+        self.tw = Toplevel(self.widget)
+        # Leaves only the label and removes the app window
+        self.tw.wm_overrideredirect(True)
+        self.tw.wm_geometry("+%d+%d" % (x, y))
+        label = Label(self.tw, text=self.text, justify='left',
+                       background="#ffffff", relief='solid', borderwidth=1,
+                       wraplength = self.wraplength)
+        label.pack(ipadx=1)
+
+    def hidetip(self):
+        tw = self.tw
+        self.tw= None
+        if tw:
+            tw.destroy()
+            
 def loadConfig(fileName='config.dat'):  
     with open(fileName, 'r', encoding='UTF8') as fin:
         configs = fin.read().split('\n')
@@ -94,7 +146,7 @@ Export filename
 {exportFile}
 Is Name TODO [Boolean, True/False]
 {isNameTODO}
-Option file collision  [int, 0:Stop, 1:Skip, 2:Overwrite, 3:Merge]
+Option file collision  [int, 0:Stop, 1:Skip, 2:Overwrite, 3:Merge, 4:Refer]
 {collisionOption}"""
     
     with open(fileName, 'w', encoding='UTF8') as fin:
@@ -551,8 +603,7 @@ def loadSelectTags(window):
     searchText.bind("<KeyRelease>", onSearch)
     
     def finishTag():
-        if not messagebox.askyesno("경고", "다음 단계에서 지금 단계로 복귀할 수 없습니다. 복귀하기 위해서는 처음부터 태그 분류를 시작해야 할 수도 있습니다. 현재 태그 분류 저장 기능은 제공하고 있지 않지만, 빠른 시간 내에 지원할 예정입니다.\n\n정말 태그 분류를 마무리할까요?"):
-            return
+        #if not messagebox.askyesno("경고", "다음 단계에서 지금 단계로 복귀할 수 없습니다. 복귀하기 위해서는 처음부터 태그 분류를 시작해야 할 수도 있습니다. 현재 태그 분류 저장 기능은 제공하고 있지 않지만, 빠른 시간 내에 지원할 예정입니다.\n\n정말 태그 분류를 마무리할까요?"): return
         frame.destroy()
         loadSelectExport(window)
 
@@ -590,11 +641,25 @@ def loadSelectExport(window):
     Label(frame, text="결과 폴더와 파일명이 일치할 경우 파일의 작업 방법").grid(row=6, column=0)
     row7Frame = Frame(frame)
     row7Frame.grid(row=7, column=0)
-    Radiobutton(row7Frame, text="중단하기", value=0, variable=varCollisionOption).grid(row=0, column=0)
-    Radiobutton(row7Frame, text="건너뛰기", value=1, variable=varCollisionOption).grid(row=0, column=1)
-    Radiobutton(row7Frame, text="덮어쓰기", value=2, variable=varCollisionOption).grid(row=0, column=2)
-    Radiobutton(row7Frame, text="추가하기", value=3, variable=varCollisionOption).grid(row=0, column=3)
-    
+    radioButtons = []
+    btnTexts = ["중단하기", "건너뛰기", "덮어쓰기", "추가하기", "참조하기"]
+    tooltips = ["파일 충돌이 발생할 경우, 파일 출력을 중단하고 알림을 표시합니다. 이 경우, 파일 충돌이 발생할 때까지 작성된 파일은 남아 있음에 유의하십시오.",
+                "파일 충돌이 발생할 경우, 해당 파일의 작성을 건너뜁니다. 이 경우, 프로그램은 별도의 알림을 표시하지 않으므로 사용자가 충돌 여부를 알 수 없습니다.",
+                "파일 충돌이 발생할 경우, 해당 파일을 내용을 삭제하고 새로 작성합니다. 이 경우, 기존 파일을 복구할 수 없으므로 사전 백업이 권장됩니다.",
+                "파일 충돌이 발생할 경우, 해당 파일에 새로운 태그들을을 추가합니다. 태그들의 순서는 본 추출기의 순서를 따르며, 추출기가 추출하지 않았지만 존재했던 내용은 파일의 하단에 출력됩니다.",
+                "파일 충돌이 발생할 경우, 해당 파일의 내용을 삭제하고 새로 작성하되, 기존 파일에 같은 태그가 있을 경우 해당 내용은 보존합니다. 추출기가 추출하지 않았지만 존재했던 내용은 버려집니다."]
+    for i, (text, tooltip) in enumerate(zip(btnTexts, tooltips)):
+        tmp = Radiobutton(row7Frame, text=text, value=i, variable=varCollisionOption)
+        CreateToolTip(tmp, tooltip)
+        tmp.grid(row=0, column=i)
+        #radioButtons.append(tmp)
+    """    
+    rb0 = Radiobutton(row7Frame, text="중단하기", value=0, variable=varCollisionOption).grid(row=0, column=0)
+    rb1 = Radiobutton(row7Frame, text="건너뛰기", value=1, variable=varCollisionOption).grid(row=0, column=1)
+    rb0 = Radiobutton(row7Frame, text="덮어쓰기", value=2, variable=varCollisionOption).grid(row=0, column=2)
+    rb0 = Radiobutton(row7Frame, text="추가하기", value=3, variable=varCollisionOption).grid(row=0, column=3)
+    rb0 = Radiobutton(row7Frame, text="참조하기", value=4, variable=varCollisionOption).grid(row=0, column=3)
+    """
     varDirName.set(exportDir)
     varFileName.set(exportFile)
     varIsNameTODO.set(isNameTODO)
@@ -635,7 +700,7 @@ def loadSelectExport(window):
                     writes = "\n".join([text.replace("{$TODO}", text[7:text.find('-->\n')-1])
                                         for tag, text in values if tag in includes])
                                                             
-            elif varCollisionOption.get() == 3: # append
+            elif varCollisionOption.get() > 2: # append or refer
                 try:
                     with open(filename, 'r', encoding='UTF8') as fin:
                         reads = fin.read().split('\n')
@@ -657,7 +722,8 @@ def loadSelectExport(window):
                                 writes.append(text.replace("{$TODO}", "TODO"))
                             else:
                                 writes.append(text.replace("{$TODO}", text[7:text.find('-->\n')-1]))
-                if alreadyDoneDict:
+                                
+                if varCollisionOption.get() == 3 and alreadyDoneDict:
                     writes.append("\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 -->\n\n")
                     for tag, text in alreadyDoneDict.items():
                         writes.append("  <" + tag + ">" + text + "</" + tag + ">\n")
