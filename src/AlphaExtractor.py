@@ -7,7 +7,7 @@ import glob, os, time
 
 EXTRACTABLE_DIRS = ["Patches", "Defs"]
 CONFIG_VERSION = 1
-EXTRACTOR_VERSION = 0.73
+EXTRACTOR_VERSION = 0.74
 
 class EntryHint(Entry):
     def __init__(self, master=None, hint="", color='grey'):
@@ -634,15 +634,7 @@ def loadSelectExport(window):
                 else:
                     writes = "\n".join([text.replace("{$TODO}", text[7:text.find('-->\n')-1])
                                         for tag, text in values if tag in includes])
-                                        
-                with open(filename, 'w', encoding='UTF8') as fin:
-                
-                    fin.write("""<?xml version="1.0" encoding="utf-8"?>\n""")
-                    fin.write("<LanguageData>\n\n")
-                    
-                    fin.write(writes)
-                    fin.write("\n</LanguageData>")
-                    
+                                                            
             elif varCollisionOption.get() == 3: # append
                 try:
                     with open(filename, 'r', encoding='UTF8') as fin:
@@ -653,32 +645,32 @@ def loadSelectExport(window):
                         alreadyDoneDict[node.tag] = node.text
                 except FileNotFoundError:
                     alreadyDoneDict = {}
-                else:
-                    writes = []
-                    for tag, text in values:
-                        if tag in includes:
-                            try:
-                                writes.append(text.replace("{$TODO}", alreadyDoneDict[text[text.find('</')+2:-2]]))
-                                del alreadyDoneDict[text[text.find('</')+2:-2]]
-                            except KeyError:
-                                if varIsNameTODO.get():
-                                    writes.append(text.replace("{$TODO}", "TODO"))
-                                else:
-                                    writes.append(text.replace("{$TODO}", text[7:text.find('-->\n')-1]))
-                    if alreadyDoneDict:
-                        writes.append("\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 -->\n\n")
-                        for tag, text in alreadyDoneDict.items():
-                            writes.append("  <" + tag + ">" + text + "</" + tag + ">\n")
-                            
-                    writes = "\n".join(writes)
-                    
-                with open(filename, 'w', encoding='UTF8') as fin:
                 
-                    fin.write("""<?xml version="1.0" encoding="utf-8"?>\n""")
-                    fin.write("<LanguageData>\n\n")
+                writes = []
+                for tag, text in values:
+                    if tag in includes:
+                        try:
+                            writes.append(text.replace("{$TODO}", alreadyDoneDict[text[text.find('</')+2:-2]]))
+                            del alreadyDoneDict[text[text.find('</')+2:-2]]
+                        except KeyError:
+                            if varIsNameTODO.get():
+                                writes.append(text.replace("{$TODO}", "TODO"))
+                            else:
+                                writes.append(text.replace("{$TODO}", text[7:text.find('-->\n')-1]))
+                if alreadyDoneDict:
+                    writes.append("\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 -->\n\n")
+                    for tag, text in alreadyDoneDict.items():
+                        writes.append("  <" + tag + ">" + text + "</" + tag + ">\n")
+                        
+                writes = "\n".join(writes)
                     
-                    fin.write(writes)
-                    fin.write("\n</LanguageData>")
+            with open(filename, 'w', encoding='UTF8') as fin:
+            
+                fin.write("""<?xml version="1.0" encoding="utf-8"?>\n""")
+                fin.write("<LanguageData>\n\n")
+                
+                fin.write(writes)
+                fin.write("\n</LanguageData>")
                 
                     
             savedList.append(className) 
