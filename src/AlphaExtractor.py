@@ -8,7 +8,7 @@ from tkinter import messagebox
 
 EXTRACTABLE_DIRS = ["Defs"]
 CONFIG_VERSION = 2
-EXTRACTOR_VERSION = "0.7.6"
+EXTRACTOR_VERSION = "0.7.7"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -246,7 +246,6 @@ def loadSelectMod(window):
     def onSelect(evt):
         w = evt.widget
         index = int(w.curselection()[0])
-        value = w.get(index)
 
         rightFrame = Frame(frame)
         rightFrame.grid(row=0, column=1, sticky=N + S + E + W)
@@ -267,6 +266,12 @@ def loadSelectMod(window):
             dnFrame.grid(row=1, column=0, sticky=N + S + E + W)
             Label(dnFrame, text="추출할 폴더를 선택하세요.").pack()
             extractCheck = [BooleanVar() for _ in versionDir[isChecked.get()]]
+            # get Keyed
+            try:
+                list(et.parse(modsList[index] + '/Languages/English/Keyed').getroot())
+            except (FileNotFoundError, PermissionError):
+                pass
+            ###########
             checkButtons = [Checkbutton(dnFrame, text=extractDir.split("\\")[-1], var=check)
                             for extractDir, check in zip(versionDir[isChecked.get()], extractCheck)]
             for checkButton in checkButtons:
@@ -285,8 +290,9 @@ def loadSelectMod(window):
             extractButton = Button(rightFrame, text="추출하기", command=onExtract)
             extractButton.grid(row=2, column=0)
 
+        # get Defs/Patches folders
         try:
-            versionList = list(et.parse(modsList[index] + '\LoadFolders.xml').getroot())
+            versionList = list(et.parse(modsList[index] + '/LoadFolders.xml').getroot())
             Label(upFrame, text="LoadFolders.xml이 발견되었습니다.\n추출할 버전을 선택하세요.").pack()
             isLoadFoldersExist = True
 
@@ -330,6 +336,7 @@ def loadSelectMod(window):
                            for dir in os.listdir(atVer)
                            if os.path.isdir(os.path.join(atVer, dir)) and dir in EXTRACTABLE_DIRS]
                           for atVer in versionDirs]
+        ###################################
 
         for btn in versionRadioBtns:
             btn.deselect()
@@ -343,21 +350,20 @@ def loadSelectMod(window):
 
 def parse_recursive(parent, className, tag, lastTag=None):
     if list(parent):
-        num_list = 0
-        for child in list(parent):
-            if child.tag == 'li':
-                yield from parse_recursive(child, className, tag + '.' + str(num_list), str(num_list))
-                num_list += 1
-            else:
-                yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
+        tags = [child.tag == 'li' for child in list(parent)]
+        texts = [child.text for child in list(parent)]
+        if all(tags) and all(texts) and tags and texts:
+            yield className, lastTag, tag, texts
+        else:
+            num_list = 0
+            for child in list(parent):
+                if child.tag == 'li':
+                    yield from parse_recursive(child, className, tag + '.' + str(num_list), str(num_list))
+                    num_list += 1
+                else:
+                    yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
     else:
         yield className, lastTag, tag, (parent.text if not parent.text is None else "ERROR:{$BLANK TEXT}")
-        """try:
-            yield className, recentTag, "  <!-- " + parent.text + " -->\n  <" + tag + ">{$TODO}</" + tag + ">\n"
-        except TypeError:
-            yield className, recentTag, "  <!-- ERROR:{$BLANK TEXT} -->\n  <" + tag + ">{$TODO}</" + tag + ">\n"
-            """
-
 
 def extractDefs(root):
     if 'value' != root.tag and 'Defs' != root.tag:
@@ -416,6 +422,8 @@ def loadSelectTags(window):
                         dict_class[className].append((lastTag, tag, text))
                     except KeyError:
                         dict_class[className] = [(lastTag, tag, text)]
+                    if type(text) == list:
+                        text = WORD_NEWLINE.join(text)
                     try:
                         dict_tags_text[lastTag].append(text)
                     except KeyError:
@@ -679,22 +687,36 @@ def loadSelectExport(window):
             if varCollisionOption.get() > 1:  # collision -> merge/refer
                 try:
                     for node in list(et.parse(filename).getroot()):
-                        alreadyDefinedDict[node.tag] = node.text
+                        if list(node):
+                            alreadyDefinedDict[node.tag] = [li.text for li in list(node)]
+                        else:
+                            alreadyDefinedDict[node.tag] = node.text
                 except FileNotFoundError:
                     pass
 
             writingTextList = []
             for lastTag, tag, text in values:
                 if lastTag in includes:
-                    try:
-                        writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
+                    if type(text) == list:
+                        try:
+                            for i, v in enumerate(alreadyDefinedDict[tag]):
+                                text[i] = alreadyDefinedDict[tag][i]
+                            del alreadyDefinedDict[tag]
+                        except:
+                            pass
+                        writingTextList.append(f"  <!-- ALPHA:LIST TYPE EXTRACTS -->\n  <{tag}>\n{WORD_NEWLINE.join([f'    <!-- {text_i} -->{WORD_NEWLINE}    <li>TODO</li>' for text_i in text])}\n  </{tag}>"
                                                if varIsNameTODO.get()
-                                               else f"  <{tag}>{alreadyDefinedDict[tag]}</{tag}>")
-                        del alreadyDefinedDict[tag]
-                    except KeyError:
-                        writingTextList.append(f"  <!-- {text} -->\n  <{tag}>TODO</{tag}>"
-                                               if varIsNameTODO.get()
-                                               else f"  <{tag}>{text}</{tag}>")
+                                               else f"  <{tag}>\n{WORD_NEWLINE.join([f'    <li>{text_i}</li>' for text_i in text])}\n  </{tag}>")
+                    else:
+                        try:
+                            writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
+                                                   if varIsNameTODO.get()
+                                                   else f"  <{tag}>{alreadyDefinedDict[tag]}</{tag}>")
+                            del alreadyDefinedDict[tag]
+                        except KeyError:
+                            writingTextList.append(f"  <!-- {text} -->\n  <{tag}>TODO</{tag}>"
+                                                   if varIsNameTODO.get()
+                                                   else f"  <{tag}>{text}</{tag}>")
 
             with open(filename, 'w', encoding='UTF8') as fin:
                 fin.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
