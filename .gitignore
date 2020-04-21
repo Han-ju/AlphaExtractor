@@ -1,5 +1,6 @@
 src/__pycache__/
 src/build/
+.idea
 AlphaExtractor.spec
 Compile.bat
 config.dat
