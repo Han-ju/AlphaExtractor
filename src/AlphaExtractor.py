@@ -1,14 +1,15 @@
 import glob
 import os
+import shutil
 import xml.etree.ElementTree as et
 from pathlib import Path
 from tkinter import *
 from tkinter import filedialog
 from tkinter import messagebox
 
-EXTRACTABLE_DIRS = ["Defs"]
+EXTRACTABLE_DIRS = ["Defs", "Languages"]
 CONFIG_VERSION = 2
-EXTRACTOR_VERSION = "0.7.7"
+EXTRACTOR_VERSION = "0.8.0"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -102,8 +103,8 @@ def loadConfig(fileName='config.dat'):
     with open(fileName, 'r', encoding='UTF8') as fin:
         configs = fin.read().split('\n')
 
-    if CONFIG_VERSION > int(configs[3]):
-        raise ()
+    if CONFIG_VERSION != int(configs[3]):
+        raise ValueError()
 
     modDir = configs[5]
     definedExcludes = configs[7].replace(' ', '').split('/')
@@ -151,7 +152,7 @@ Export filename
 {exportFile}
 Is Name TODO [Boolean, True/False]
 {isNameTODO}
-Option file collision  [int, 0:Stop, 1:Skip, 2:Overwrite, 3:Merge, 4:Refer]
+Option file collision  [int, 0:Stop, 1:Overwrite, 2:Merge, 3:Refer]
 {collisionOption}"""
 
     with open(fileName, 'w', encoding='UTF8') as fin:
@@ -178,7 +179,7 @@ def loadInit(window):
 
 이 텍스트를 클릭할 경우 위 경로가 적용됩니다.
 
-GUI 첫 배포 버전이므로 현재 Defs만 추출이 가능합니다.
+현재 추출 가능한 폴더: Defs, Keyed, Strings
 모든 종류의 개선안이나, 버그 제보는 항상 환영합니다.
 
 version = {EXTRACTOR_VERSION}"""
@@ -259,23 +260,18 @@ def loadSelectMod(window):
         dnFrame = Frame(rightFrame)
         dnFrame.grid(row=1, column=0, sticky=N + S + E + W)
 
-        isChecked = IntVar()
+        isChecked = IntVar(value=-1)
 
         def onCheck():
             dnFrame = Frame(rightFrame)
             dnFrame.grid(row=1, column=0, sticky=N + S + E + W)
             Label(dnFrame, text="추출할 폴더를 선택하세요.").pack()
-            extractCheck = [BooleanVar() for _ in versionDir[isChecked.get()]]
-            # get Keyed
-            try:
-                list(et.parse(modsList[index] + '/Languages/English/Keyed').getroot())
-            except (FileNotFoundError, PermissionError):
-                pass
-            ###########
-            checkButtons = [Checkbutton(dnFrame, text=extractDir.split("\\")[-1], var=check)
-                            for extractDir, check in zip(versionDir[isChecked.get()], extractCheck)]
-            for checkButton in checkButtons:
-                checkButton.pack()
+            extractCheck = [BooleanVar(value=True) for _ in versionDir[isChecked.get()]]
+            for extractDir, check in zip(versionDir[isChecked.get()], extractCheck):
+                text = extractDir.split("\\")[-1]
+                if text == "Languages":
+                    text = "Keyed/Strings"
+                Checkbutton(dnFrame, text=text, var=check).pack()
 
             def onExtract():
                 global goExtractList
@@ -299,12 +295,12 @@ def loadSelectMod(window):
             versionRadioBtns = [Radiobutton(upFrame, text=version.tag, value=i, variable=isChecked, command=onCheck)
                                 for i, version in enumerate(versionList)]
             versionDirs = [[(modsList[index] + "/" + versionDir.text if not versionDir.text == '/' else modsList[index])
-                         for versionDir in list(version) if versionDir.text]
-                        for version in versionList]
-            versionDir = [[os.path.join(eachVersionDir, dir)
-                           for eachVersionDir in eachVersion
-                           for dir in os.listdir(eachVersionDir)
-                           if os.path.isdir(os.path.join(eachVersionDir, dir)) and dir in EXTRACTABLE_DIRS]
+                            for versionDir in list(version) if versionDir.text]
+                           for version in versionList]
+            versionDir = [[os.path.join(eachDir, extractType)
+                           for eachDir in eachVersion
+                           for extractType in os.listdir(eachDir)
+                           if os.path.isdir(os.path.join(eachDir, extractType)) and extractType in EXTRACTABLE_DIRS]
                           for eachVersion in versionDirs]
 
         except FileNotFoundError:
@@ -330,8 +326,8 @@ def loadSelectMod(window):
                                 for i, version in enumerate(versionList)]
 
             versionDirs = [os.path.join(modsList[index], version)
-                        if not version == 'default' else modsList[index]
-                        for version in versionList]
+                           if not version == 'default' else modsList[index]
+                           for version in versionList]
             versionDir = [[os.path.join(atVer, dir)
                            for dir in os.listdir(atVer)
                            if os.path.isdir(os.path.join(atVer, dir)) and dir in EXTRACTABLE_DIRS]
@@ -341,8 +337,6 @@ def loadSelectMod(window):
         for btn in versionRadioBtns:
             btn.deselect()
             btn.pack()
-
-        isChecked.set(0)
 
     listbox.bind('<<ListboxSelect>>', onSelect)
     listbox.grid(row=0, column=0, sticky=N + S + E + W)
@@ -364,6 +358,7 @@ def parse_recursive(parent, className, tag, lastTag=None):
                     yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
     else:
         yield className, lastTag, tag, (parent.text if not parent.text is None else "ERROR:{$BLANK TEXT}")
+
 
 def extractDefs(root):
     if 'value' != root.tag and 'Defs' != root.tag:
@@ -392,7 +387,7 @@ def extractDefs(root):
 
 
 def loadSelectTags(window):
-    global goExtractList, excludes, defaults, includes, excludeHide, defaultHide, includeHide, dict_class
+    global goExtractList, excludes, defaults, includes, excludeHide, defaultHide, includeHide, dict_class, dict_keyed, list_strings
 
     frame = Frame(window)
     frame.grid(row=0, column=0, sticky=N + S + E + W)
@@ -408,8 +403,8 @@ def loadSelectTags(window):
     dict_tags_text = {}
 
     for goExtract in goExtractList:
-        GoExtractLists = glob.glob(goExtract + "/**/*.xml", recursive=True)
         if goExtract.split('\\')[-1] == 'Defs':
+            GoExtractLists = glob.glob(goExtract + "/**/*.xml", recursive=True)
             for path in GoExtractLists:
                 try:
                     extracts = extractDefs(et.parse(path).getroot())
@@ -428,11 +423,28 @@ def loadSelectTags(window):
                         dict_tags_text[lastTag].append(text)
                     except KeyError:
                         dict_tags_text[lastTag] = [text]
+
+        elif goExtract.split('\\')[-1] == 'Languages':
+            GoExtractLists = glob.glob(goExtract + "\\English\\Keyed\\**\\*.xml", recursive=True)
+            for path in GoExtractLists:
+                try:
+                    nodes = list(et.parse(path).getroot())
+                except ValueError as e:
+                    messagebox.showerror("에러 발생", str(e) + "\n파일명: " + path)
+                    return
+                for node in nodes:
+                    dict_keyed[node.tag] = node.text
+            list_strings = glob.glob(goExtract + "\\English\\Strings\\**\\*.txt", recursive=True)
         else:
-            messagebox.showerror("에러 발생", "Patches 등 Defs 이외의 모든 폴더는 아직 추출할 수 없습니다.\n자동으로 제외합니다.")
+            messagebox.showerror("에러 발생", "Patches 등 Defs, Keyed 이외의 모든 폴더는 아직 추출할 수 없습니다.\n자동으로 제외합니다.")
+
     if dict_tags_text == {}:
-        messagebox.showerror("에러 발생", "추출 가능한 xml가 존재하지 않거나, 찾을 수 없습니다. 프로그램을 종료합니다.")
-        window.destroy()
+        if dict_keyed or list_strings:
+            loadSelectExport(window)
+        else:
+            messagebox.showerror("에러 발생", "추출 가능한 xml가 존재하지 않거나, 찾을 수 없습니다. 프로그램을 종료합니다.")
+            window.destroy()
+        return
 
     def showTexts(evt):
         w = evt.widget
@@ -661,7 +673,7 @@ def loadSelectExport(window):
 
     def exportXml():
         savedList = []
-        for className, values in dict_class.items():
+        for className, values in dict_class.items(): # Defs / Patches
             isThereNoIncludes = True
             for lastTag, _, _ in values:  # check existence of include tag
                 if lastTag in includes:
@@ -704,9 +716,10 @@ def loadSelectExport(window):
                             del alreadyDefinedDict[tag]
                         except:
                             pass
-                        writingTextList.append(f"  <!-- ALPHA:LIST TYPE EXTRACTS -->\n  <{tag}>\n{WORD_NEWLINE.join([f'    <!-- {text_i} -->{WORD_NEWLINE}    <li>TODO</li>' for text_i in text])}\n  </{tag}>"
-                                               if varIsNameTODO.get()
-                                               else f"  <{tag}>\n{WORD_NEWLINE.join([f'    <li>{text_i}</li>' for text_i in text])}\n  </{tag}>")
+                        writingTextList.append(
+                            f"  <!-- ALPHA:LIST TYPE EXTRACTS -->\n  <{tag}>\n{WORD_NEWLINE.join([f'    <!-- {text_i} -->{WORD_NEWLINE}    <li>TODO</li>' for text_i in text])}\n  </{tag}>"
+                            if varIsNameTODO.get()
+                            else f"  <{tag}>\n{WORD_NEWLINE.join([f'    <li>{text_i}</li>' for text_i in text])}\n  </{tag}>")
                     else:
                         try:
                             writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
@@ -721,11 +734,76 @@ def loadSelectExport(window):
             with open(filename, 'w', encoding='UTF8') as fin:
                 fin.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
                 fin.write('\n'.join(writingTextList))
-                if varCollisionOption.get() == 3 and len(residueList) > 1:  # collision -> refer
+                if varCollisionOption.get() == 2 and len(residueList) > 1:  # collision -> merge
                     fin.write('\n'.join(residueList))
                 fin.write("\n</LanguageData>")
 
             savedList.append(className)
+
+        # Keyed
+        if len(dict_keyed) > 0:
+            filename = varDirName.get() + '/Keyed/' + varFileName.get()
+            Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
+
+            if varCollisionOption.get() == 0:  # collision -> stop
+                try:
+                    with open(filename, 'r', encoding='UTF8') as fin:
+                        messagebox.showerror("파일 충돌 발견됨",
+                                             f"Keyed 폴더의 파일이 존재하여 작업을 중단하였습니다.\n이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
+                        return
+                except FileNotFoundError:
+                    pass
+
+            residueList = ["\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 -->\n\n"]
+            alreadyDefinedDict = {}
+            if varCollisionOption.get() > 1:  # collision -> merge/refer
+                try:
+                    for node in list(et.parse(filename).getroot()):
+                        if list(node):
+                            messagebox.showerror("list형의 Keyed 노드 발견됨",
+                                                 "본 프로그램은 Keyed 파일에 <li> 태그가 없는 것으로 가정하였습니다. 파일 출력이 완료되었어도 에러가 존재할 수 있습니다. 해당 내용을 Alpha에게 보고해 주십시오.")
+                            alreadyDefinedDict[node.tag] = [li.text for li in list(node)]
+                        else:
+                            alreadyDefinedDict[node.tag] = node.text
+                except FileNotFoundError:
+                    pass
+
+            writingTextList = []
+            for tag, text in dict_keyed.items():
+                try:
+                    writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
+                                           if varIsNameTODO.get()
+                                           else f"  <{tag}>{alreadyDefinedDict[tag]}</{tag}>")
+                    del alreadyDefinedDict[tag]
+                except KeyError:
+                    writingTextList.append(f"  <!-- {text} -->\n  <{tag}>TODO</{tag}>"
+                                           if varIsNameTODO.get()
+                                           else f"  <{tag}>{text}</{tag}>")
+
+            with open(filename, 'w', encoding='UTF8') as fin:
+                fin.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
+                fin.write('\n'.join(writingTextList))
+                if varCollisionOption.get() == 2 and len(residueList) > 1:  # collision -> merge
+                    fin.write('\n'.join(residueList))
+                fin.write("\n</LanguageData>")
+
+            savedList.append("Keyed")
+
+        # Strings
+        for departure in list_strings:
+            destination = varDirName.get() + departure.split('Languages\\English')[1]
+            if varCollisionOption.get() != 1:  # collision -> not overwrite
+                try:
+                    with open(destination, 'r', encoding='UTF8') as fin:
+                        messagebox.showerror("파일 충돌 발견됨",
+                                             f"Keyed 폴더의 파일이 존재하여 작업을 중단하였습니다.\n이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
+                        return
+                except FileNotFoundError:
+                    pass
+            Path('\\'.join(destination.split('\\')[:-1])).mkdir(parents=True, exist_ok=True)
+
+        if list_strings:
+            savedList.append("Strings")
 
         writeConfig(new_exportDir=varDirName.get(), new_exportFile=varFileName.get(),
                     new_isNameTODO=varIsNameTODO.get(), new_collisionOption=varCollisionOption.get())
@@ -741,6 +819,10 @@ if __name__ == '__main__':
 
     goExtractList = []
 
+    dict_class = {}
+    dict_keyed = {}
+    list_strings = []
+
     excludes = []
     defaults = []
     includes = []
@@ -748,8 +830,6 @@ if __name__ == '__main__':
     excludeHide = []
     defaultHide = []
     includeHide = []
-
-    dict_class = {}
 
     window = Tk()
     window.title("Alpha의 림월드 모드 언어 추출기")
@@ -759,8 +839,17 @@ if __name__ == '__main__':
 
     try:
         modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
-    except Exception:
+    except FileNotFoundError:
         writeConfig()
+        modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+    except ValueError:
+        if messagebox.askyesno("사용자 설정 초기화", "config.dat 파일의 형식이 변경되어 초기화가 필요합니다.\
+\n초기화 진행 시 사용자가 변경한 설정이 유실됩니다.\
+\n필요할 경우 초기화를 진행하기 전에 백업해 주세요.\
+\n설정 초기화를 진행할까요?"):
+            writeConfig()
+        else:
+            exit(0)
         modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
 
     loadInit(window)
