@@ -9,14 +9,13 @@ from tkinter import messagebox
 
 EXTRACTABLE_DIRS = ["Defs", "Languages"]
 CONFIG_VERSION = 2
-EXTRACTOR_VERSION = "0.8.0"
+EXTRACTOR_VERSION = "0.8.1"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
-
 class EntryHint(Entry):
-    def __init__(self, master=None, hint="", color='grey'):
-        super().__init__(master)
+    def __init__(self, master=None, hint="", color='grey', **kwargs):
+        super().__init__(master, **kwargs)
 
         self.hint = hint
         self.hint_color = color
@@ -160,7 +159,7 @@ Option file collision  [int, 0:Stop, 1:Overwrite, 2:Merge, 3:Refer]
 
 
 def loadInit(window):
-    global modDir, easterEgg
+    global modsLocation, easterEgg
     easterEgg = 0
 
     frame = Frame(window)
@@ -173,7 +172,8 @@ def loadInit(window):
 
     labelText = f"""림월드 모드들이 위치한 폴더를 선택해 주십시오
 
-해당 폴더에는 모드 폴더들이 존재해야 합니다.스팀 창작마당 모드의 경우 기본값은 다음과 같습니다.
+해당 폴더에는 모드 폴더들이 존재해야 합니다.
+스팀 창작마당 모드의 경우 기본값은 다음과 같습니다.
 
 [C:/Program Files (x86)/Steam/steamapps/workshop/content/294100]
 
@@ -194,7 +194,7 @@ version = {EXTRACTOR_VERSION}"""
     label.bind("<Button-1>", onClickLabel)
 
     entry = Entry(frame)
-    entry.insert(0, modDir)
+    entry.insert(0, modsLocation)
     entry.grid(row=1, column=0, columnspan=3, sticky=E + W)
 
     def onClick1():
@@ -205,12 +205,12 @@ version = {EXTRACTOR_VERSION}"""
     btn.grid(row=1, column=3)
 
     def onClick2():
-        global modDir, easterEgg
-        modDir = entry.get()
-        if not modDir:
+        global modsLocation, easterEgg
+        modsLocation = entry.get()
+        if not modsLocation:
             messagebox.showerror("경로 선택되지 않음", "모드들이 위치한 폴더를 선택해 주십시오.")
             return
-        writeConfig(new_modDir=modDir)
+        writeConfig(new_modDir=modsLocation)
         frame.destroy()
         loadSelectMod(window)
 
@@ -219,128 +219,116 @@ version = {EXTRACTOR_VERSION}"""
 
 
 def loadSelectMod(window):
-    global modDir
+    global modsLocation
 
     frame = Frame(window)
     frame.grid(row=0, column=0, sticky=N + S + E + W)
-    for i in range(1):
-        Grid.rowconfigure(frame, i, weight=1)
-    for i in range(2):
-        Grid.columnconfigure(frame, i, weight=1)
+    Grid.rowconfigure(frame, 1, weight=1)
+    Grid.columnconfigure(frame, 0, weight=2)
+    Grid.columnconfigure(frame, 1, weight=1)
 
-    listbox = Listbox(frame)
-    modsList = glob.glob(modDir + '/*')
+    textLabel1 = Label(frame, text="추출할 모드를 선택하세요")
+    textLabel1.grid(row=0, column=0, sticky=N + S + E + W, padx=5, pady=5)
 
-    if not modsList:
-        messagebox.showerror("파일/폴더 찾을 수 없음", "해당 폴더에 어떤 파일/폴더도 존재하지 않습니다")
-        frame.destroy()
-        loadInit(window)
-        return
+    modListBoxValue = StringVar()
+    modListBox = Listbox(frame, selectborderwidth=3, listvariable=modListBoxValue)
+    modListBox.grid(row=1, column=0, sticky=N + S + E + W)
 
-    for i, modPath in enumerate(modsList):
+    searchMod = EntryHint(frame, "[모드 검색]", justify='center')
+    searchMod.grid(row=2, column=0, sticky=E + W, padx=5, pady=5)
+
+    textLabel2 = Label(frame, text="추출할 버전 및 폴더들을 선택하세요")
+    textLabel2.grid(row=0, column=1, sticky=N + S + E + W, padx=5, pady=5)
+
+    dirList = StringVar()
+    dirListBox = Listbox(frame, selectmode='multiple', selectborderwidth=10, listvariable=dirList)
+    dirListBox.grid(row=1, column=1, sticky=N + S + E + W)
+
+    extractButton = Button(frame, text="추출하기")
+    extractButton.grid(row=2, column=1)
+
+    modPathList = [modPath.replace('\\', '/') for modPath in glob.glob(modsLocation + '/*') if os.path.isdir(modPath)]
+    if not modPathList: # If No Mod
+        messagebox.showerror("모드 폴더 찾을 수 없음", "선택한 폴더에 어떤 하위 폴더도 존재하지 않습니다.\n프로그램을 종료합니다.")
+        exit(0)
+
+    modsNameDict = {}
+    sep = ' | '
+    for modPath in modPathList:
         try:
-            listbox.insert(i + 1,
-                           f"{int(modPath.split(WORD_BACKSLASH)[-1]):010d} | {et.parse(modPath + '/About/About.xml').getroot().find('name').text}")
+            modsNameDict[f"{int(modPath.split('/')[-1]):010d}{sep}{et.parse(modPath + '/About/About.xml').getroot().find('name').text}"] = modPath
         except (FileNotFoundError, ValueError):
-            listbox.insert(i + 1, f"0000000000 | {modPath.split(WORD_BACKSLASH)[-1]}")
+            modsNameDict[f"0000000000{sep}{modPath.split('/')[-1]}"] = modPath
+    modsNameDictKeys = list(modsNameDict.keys())
+    modsNameDictKeys.sort(key=lambda x: x.split(sep)[1])
+    modListBoxValue.set(modsNameDictKeys)
 
-    def onSelect(evt):
-        w = evt.widget
-        index = int(w.curselection()[0])
+    extractableDirPathList = []
+    extractableDirNameList = []
 
-        rightFrame = Frame(frame)
-        rightFrame.grid(row=0, column=1, sticky=N + S + E + W)
-        for i in range(3):
-            Grid.rowconfigure(rightFrame, i, weight=1)
-        for i in range(1):
-            Grid.columnconfigure(rightFrame, i, weight=1)
-
-        upFrame = Frame(rightFrame)
-        upFrame.grid(row=0, column=0, sticky=N + S + E + W)
-        dnFrame = Frame(rightFrame)
-        dnFrame.grid(row=1, column=0, sticky=N + S + E + W)
-
-        isChecked = IntVar(value=-1)
-
-        def onCheck():
-            dnFrame = Frame(rightFrame)
-            dnFrame.grid(row=1, column=0, sticky=N + S + E + W)
-            Label(dnFrame, text="추출할 폴더를 선택하세요.").pack()
-            extractCheck = [BooleanVar(value=True) for _ in versionDir[isChecked.get()]]
-            for extractDir, check in zip(versionDir[isChecked.get()], extractCheck):
-                text = extractDir.split("\\")[-1]
-                if text == "Languages":
-                    text = "Keyed/Strings"
-                Checkbutton(dnFrame, text=text, var=check).pack()
-
-            def onExtract():
-                global goExtractList
-
-                goExtractList = [v for v, b in zip(versionDir[isChecked.get()], extractCheck) if b.get()]
-                if not goExtractList:
-                    messagebox.showerror("폴더를 선택하세요", "추출할 폴더를 하나 이상 선택하세요.")
-                    return
-                frame.destroy()
-                loadSelectTags(window)
-
-            extractButton = Button(rightFrame, text="추출하기", command=onExtract)
-            extractButton.grid(row=2, column=0)
-
-        # get Defs/Patches folders
+    def onModSelect(evt):
         try:
-            versionList = list(et.parse(modsList[index] + '/LoadFolders.xml').getroot())
-            Label(upFrame, text="LoadFolders.xml이 발견되었습니다.\n추출할 버전을 선택하세요.").pack()
-            isLoadFoldersExist = True
+            modPath = modsNameDict[evt.widget.get(int(evt.widget.curselection()[0]))]
+        except IndexError:
+            return
 
-            versionRadioBtns = [Radiobutton(upFrame, text=version.tag, value=i, variable=isChecked, command=onCheck)
-                                for i, version in enumerate(versionList)]
-            versionDirs = [[(modsList[index] + "/" + versionDir.text if not versionDir.text == '/' else modsList[index])
-                            for versionDir in list(version) if versionDir.text]
-                           for version in versionList]
-            versionDir = [[os.path.join(eachDir, extractType)
-                           for eachDir in eachVersion
-                           for extractType in os.listdir(eachDir)
-                           if os.path.isdir(os.path.join(eachDir, extractType)) and extractType in EXTRACTABLE_DIRS]
-                          for eachVersion in versionDirs]
+        extractableDirPathList.clear()
+        extractableDirNameList.clear()
+        try:
+            modVersionNodeList = list(et.parse(f'{modPath}/LoadFolders.xml').getroot())
+            for eachVersionNode in modVersionNodeList:
+                for eachLoad in list(eachVersionNode):
+                    if not eachLoad.text: continue
+                    path = os.path.join(modPath, eachLoad.text) if eachLoad.text != '/' else modPath
+                    try:
+                        attr = eachLoad.attrib['IfModActive']
+                    except KeyError:
+                        attr = ""
+                    for eachType in os.listdir(path):
+                        if eachType in EXTRACTABLE_DIRS:
+                            extractableDirPathList.append(os.path.join(path, eachType))
+                            if eachType == "Languages": eachType = "Keyed/Strings"
+                            name = f"{eachVersionNode.tag} - {eachType}"
+                            if attr: name = f"{name} [모드 의존성: {attr}]"
+                            extractableDirNameList.append(name)
 
         except FileNotFoundError:
-            isLoadFoldersExist = False
-            Label(upFrame,
-                  text="LoadFolders.xml을 발견하지 못했습니다.\n폴더명 기반으로 추측되었습니다.\n추출할 버전을 선택하세요.").pack()
-            versionsPath = [name
-                            for name in os.listdir(modsList[index])
-                            if os.path.isdir(os.path.join(modsList[index], name))]
+            for eachLoad in [modPath] + glob.glob(f"{modPath}/*"):
+                if os.path.isdir(eachLoad):
+                    for eachType in os.listdir(eachLoad):
+                        if eachType in EXTRACTABLE_DIRS:
+                            extractableDirPathList.append(os.path.join(eachLoad, eachType))
+                            ver = eachLoad.split('\\')[-1] if eachLoad != modPath else "default"
+                            if eachType == "Languages": eachType = "Keyed/Strings"
+                            extractableDirNameList.append(f"{ver} - {eachType}")
+        dirList.set(extractableDirNameList)
 
-            versionList = []
-            isModNoVersion = False
-            for item in versionsPath:
-                tmp = item.split('\\')[-1]
-                if tmp in EXTRACTABLE_DIRS:
-                    isModNoVersion = True
-                if "1." in tmp:
-                    versionList.append(tmp)
-            if isModNoVersion:
-                versionList.insert(0, "default")
+    modListBox.bind('<<ListboxSelect>>', onModSelect)
 
-            versionRadioBtns = [Radiobutton(upFrame, text=version, value=i, variable=isChecked, command=onCheck)
-                                for i, version in enumerate(versionList)]
+    def onExtract():
+        global goExtractList
 
-            versionDirs = [os.path.join(modsList[index], version)
-                           if not version == 'default' else modsList[index]
-                           for version in versionList]
-            versionDir = [[os.path.join(atVer, dir)
-                           for dir in os.listdir(atVer)
-                           if os.path.isdir(os.path.join(atVer, dir)) and dir in EXTRACTABLE_DIRS]
-                          for atVer in versionDirs]
-        ###################################
+        goExtractList = [extractableDirPathList[idx] for idx in dirListBox.curselection()]
+        if not goExtractList:
+            messagebox.showerror("폴더를 선택하세요", "추출할 폴더를 하나 이상 선택하세요.")
+            return
+        frame.destroy()
+        loadSelectTags(window)
 
-        for btn in versionRadioBtns:
-            btn.deselect()
-            btn.pack()
+    extractButton.configure(command=onExtract)
 
-    listbox.bind('<<ListboxSelect>>', onSelect)
-    listbox.grid(row=0, column=0, sticky=N + S + E + W)
+    def onSearch(evt):
+        modSearch = searchMod.get()
 
+        if modSearch != "":
+            modShow = [modName for modName in modsNameDictKeys if modSearch in modName]
+        else:
+            modShow = modsNameDictKeys
+
+        modShow.sort(key=lambda x: x.split(sep)[1])
+        modListBoxValue.set(modShow)
+
+    searchMod.bind("<KeyRelease>", onSearch)
 
 def parse_recursive(parent, className, tag, lastTag=None):
     if list(parent):
@@ -673,7 +661,7 @@ def loadSelectExport(window):
 
     def exportXml():
         savedList = []
-        for className, values in dict_class.items(): # Defs / Patches
+        for className, values in dict_class.items():  # Defs / Patches
             isThereNoIncludes = True
             for lastTag, _, _ in values:  # check existence of include tag
                 if lastTag in includes:
@@ -701,7 +689,7 @@ def loadSelectExport(window):
                     for node in list(et.parse(filename).getroot()):
                         if list(node):
                             alreadyDefinedDict[node.tag] = [li.text for li in list(node)]
-                        else:
+                        elif node.text != "TODO":
                             alreadyDefinedDict[node.tag] = node.text
                 except FileNotFoundError:
                     pass
@@ -712,7 +700,8 @@ def loadSelectExport(window):
                     if type(text) == list:
                         try:
                             for i, v in enumerate(alreadyDefinedDict[tag]):
-                                text[i] = alreadyDefinedDict[tag][i]
+                                if alreadyDefinedDict[tag][i] != "TODO":
+                                    text[i] = alreadyDefinedDict[tag][i]
                             del alreadyDefinedDict[tag]
                         except:
                             pass
@@ -761,15 +750,16 @@ def loadSelectExport(window):
                     for node in list(et.parse(filename).getroot()):
                         if list(node):
                             messagebox.showerror("list형의 Keyed 노드 발견됨",
-                                                 "본 프로그램은 Keyed 파일에 <li> 태그가 없는 것으로 가정하였습니다. 파일 출력이 완료되었어도 에러가 존재할 수 있습니다. 해당 내용을 Alpha에게 보고해 주십시오.")
+                                                 "본 프로그램은 Keyed 파일의 텍스트에 태그(<>)가 없는 것으로 가정하였습니다. 해당 노드의 번역은 보존되지 않았을 수 있습니다.")
                             alreadyDefinedDict[node.tag] = [li.text for li in list(node)]
-                        else:
+                        elif node.text != "TODO":
                             alreadyDefinedDict[node.tag] = node.text
                 except FileNotFoundError:
                     pass
 
             writingTextList = []
             for tag, text in dict_keyed.items():
+                text = text.replace('<', '&lt;')
                 try:
                     writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
                                            if varIsNameTODO.get()
@@ -796,11 +786,13 @@ def loadSelectExport(window):
                 try:
                     with open(destination, 'r', encoding='UTF8') as fin:
                         messagebox.showerror("파일 충돌 발견됨",
-                                             f"Keyed 폴더의 파일이 존재하여 작업을 중단하였습니다.\n이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
+                                             f"Strings 폴더의 파일이 존재하여 작업을 중단하였습니다.\n이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
                         return
                 except FileNotFoundError:
                     pass
+
             Path('\\'.join(destination.split('\\')[:-1])).mkdir(parents=True, exist_ok=True)
+            shutil.copy(departure, destination)
 
         if list_strings:
             savedList.append("Strings")
@@ -833,15 +825,15 @@ if __name__ == '__main__':
 
     window = Tk()
     window.title("Alpha의 림월드 모드 언어 추출기")
-    window.geometry("640x400+100+100")
+    window.geometry("800x400+100+100")
     Grid.rowconfigure(window, 0, weight=1)
     Grid.columnconfigure(window, 0, weight=1)
 
     try:
-        modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+        modsLocation, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
     except FileNotFoundError:
         writeConfig()
-        modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+        modsLocation, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
     except ValueError:
         if messagebox.askyesno("사용자 설정 초기화", "config.dat 파일의 형식이 변경되어 초기화가 필요합니다.\
 \n초기화 진행 시 사용자가 변경한 설정이 유실됩니다.\
@@ -850,7 +842,7 @@ if __name__ == '__main__':
             writeConfig()
         else:
             exit(0)
-        modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+        modsLocation, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
 
     loadInit(window)
 
