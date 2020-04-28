@@ -9,10 +9,12 @@ from tkinter import messagebox
 
 EXTRACTABLE_DIRS = ["Defs", "Languages"]
 CONFIG_VERSION = 2
-EXTRACTOR_VERSION = "0.8.1"
+EXTRACTOR_VERSION = "0.8.2"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
+
+# noinspection PyUnusedLocal
 class EntryHint(Entry):
     def __init__(self, master=None, hint="", color='grey', **kwargs):
         super().__init__(master, **kwargs)
@@ -47,10 +49,11 @@ class EntryHint(Entry):
             self.put_hint()
 
 
+# noinspection PyUnusedLocal
 class CreateToolTip(object):
     def __init__(self, widget, text='widget info'):
-        self.waittime = 500  # miliseconds
-        self.wraplength = 180  # pixels
+        self.waitTime = 500
+        self.wrapLength = 180
         self.widget = widget
         self.text = text
         self.widget.bind("<Enter>", self.enter)
@@ -68,27 +71,25 @@ class CreateToolTip(object):
 
     def schedule(self):
         self.unschedule()
-        self.id = self.widget.after(self.waittime, self.showtip)
+        self.id = self.widget.after(self.waitTime, self.showtip)
 
     def unschedule(self):
-        id = self.id
+        tmp = self.id
         self.id = None
-        if id:
-            self.widget.after_cancel(id)
+        if tmp:
+            self.widget.after_cancel(tmp)
 
     def showtip(self, event=None):
         x = y = 0
         x, y, cx, cy = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 20
-        # creates a toplevel window
         self.tw = Toplevel(self.widget)
-        # Leaves only the label and removes the app window
         self.tw.wm_overrideredirect(True)
         self.tw.wm_geometry("+%d+%d" % (x, y))
         label = Label(self.tw, text=self.text, justify='left',
                       background="#ffffff", relief='solid', borderwidth=1,
-                      wraplength=self.wraplength)
+                      wraplength=self.wrapLength)
         label.pack(ipadx=1)
 
     def hidetip(self):
@@ -116,20 +117,39 @@ def loadConfig(fileName='config.dat'):
     return modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption
 
 
+# noinspection PyShadowingNames
 def writeConfig(new_modDir=None, new_exportDir=None, new_exportFile=None,
                 new_isNameTODO=None, new_collisionOption=None, fileName="config.dat"):
     try:
         modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
-        if new_modDir: modDir = new_modDir
-        if new_exportDir: exportDir = new_exportDir
-        if new_exportFile: exportFile = new_exportFile
-        if str(new_isNameTODO): isNameTODO = new_isNameTODO
-        if new_collisionOption: collisionOption = new_collisionOption
-    except Exception:
+        if new_modDir:
+            modDir = new_modDir
+        if new_exportDir:
+            exportDir = new_exportDir
+        if new_exportFile:
+            exportFile = new_exportFile
+        if str(new_isNameTODO):
+            isNameTODO = new_isNameTODO
+        if new_collisionOption:
+            collisionOption = new_collisionOption
+    except ValueError:
         modDir = ""
         definedExcludes = []
-        definedIncludes = "label/description/customLabel/rulesStrings/slateRef/reportString/jobString/verb/labelNoun/gerund/helpText/letterText/labelFemale/labelPlural/text/labelShort/letterLabel/baseInspectLine/beginLetter/rejectInputMessage/deathMessage/beginLetterLabel/recoveryMessage/endMessage/gerundLabel/pawnLabel/onMapInstruction/labelNounPretty/labelForFullStatList/pawnSingular/pawnsPlural/labelSolidTendedWell/labelTendedWell/labelTendedWellInner/destroyedLabel/permanentLabel/skillLabel/graphLabelY/formatString/meatLabel/headerTip/labelMale/ingestCommandString/ingestReportString/useLabel/descriptionFuture/destroyedOutLabel/leaderTitle/textEnemy/textWillArrive/arrivalTextEnemy/letterLabelEnemy/arrivedLetter/stuffAdjective/textFriendly/arrivalTextFriendly/letterLabelFriendly/name/summary/labelMechanoids/approachingReportString/approachOrderString/fuelGizmoLabel/fuelLabel/outOfFuelMessage/labelSocial/calledOffMessage/finishedMessage/discoverLetterLabel/discoverLetterText/discoveredLetterText/discoveredLetterTitle/instantlyPermanentLabel/letter/adjective/labelFemalePlural/successfullyRemovedHediffMessage/offMessage/ingestReportStringEat/renounceTitleMessage/royalFavorLabel/letterTitle".split(
-            '/')
+        definedIncludes = "label/description/customLabel/rulesStrings/slateRef/reportString/jobString/verb/labelNoun" \
+                          "/gerund/helpText/letterText/labelFemale/labelPlural/text/labelShort/letterLabel" \
+                          "/baseInspectLine/beginLetter/rejectInputMessage/deathMessage/beginLetterLabel" \
+                          "/recoveryMessage/endMessage/gerundLabel/pawnLabel/onMapInstruction/labelNounPretty" \
+                          "/labelForFullStatList/pawnSingular/pawnsPlural/labelSolidTendedWell/labelTendedWell" \
+                          "/labelTendedWellInner/destroyedLabel/permanentLabel/skillLabel/graphLabelY/formatString" \
+                          "/meatLabel/headerTip/labelMale/ingestCommandString/ingestReportString/useLabel" \
+                          "/descriptionFuture/destroyedOutLabel/leaderTitle/textEnemy/textWillArrive/arrivalTextEnemy" \
+                          "/letterLabelEnemy/arrivedLetter/stuffAdjective/textFriendly/arrivalTextFriendly" \
+                          "/letterLabelFriendly/name/summary/labelMechanoids/approachingReportString" \
+                          "/approachOrderString/fuelGizmoLabel/fuelLabel/outOfFuelMessage/labelSocial" \
+                          "/calledOffMessage/finishedMessage/discoverLetterLabel/discoverLetterText" \
+                          "/discoveredLetterText/discoveredLetterTitle/instantlyPermanentLabel/letter/adjective" \
+                          "/labelFemalePlural/successfullyRemovedHediffMessage/offMessage/ingestReportStringEat" \
+                          "/renounceTitleMessage/royalFavorLabel/letterTitle".split('/')
         exportDir = "extracted"
         exportFile = "alpha.xml"
         isNameTODO = "True"
@@ -159,9 +179,6 @@ Option file collision  [int, 0:Stop, 1:Overwrite, 2:Merge, 3:Refer]
 
 
 def loadInit(window):
-    global modsLocation, easterEgg
-    easterEgg = 0
-
     frame = Frame(window)
     frame.grid(row=0, column=0, sticky=N + S + E + W)
 
@@ -187,14 +204,15 @@ version = {EXTRACTOR_VERSION}"""
     label = Label(frame, text=labelText)
     label.grid(row=0, column=0, columnspan=4, sticky=N + S + E + W)
 
-    def onClickLabel(event):
+    # noinspection PyUnusedLocal
+    def onClickLabel(evt):
         entry.delete(0, END)
         entry.insert(0, "C:/Program Files (x86)/Steam/steamapps/workshop/content/294100")
 
     label.bind("<Button-1>", onClickLabel)
 
     entry = Entry(frame)
-    entry.insert(0, modsLocation)
+    entry.insert(0, modsLoc)
     entry.grid(row=1, column=0, columnspan=3, sticky=E + W)
 
     def onClick1():
@@ -205,7 +223,6 @@ version = {EXTRACTOR_VERSION}"""
     btn.grid(row=1, column=3)
 
     def onClick2():
-        global modsLocation, easterEgg
         modsLocation = entry.get()
         if not modsLocation:
             messagebox.showerror("경로 선택되지 않음", "모드들이 위치한 폴더를 선택해 주십시오.")
@@ -219,8 +236,6 @@ version = {EXTRACTOR_VERSION}"""
 
 
 def loadSelectMod(window):
-    global modsLocation
-
     frame = Frame(window)
     frame.grid(row=0, column=0, sticky=N + S + E + W)
     Grid.rowconfigure(frame, 1, weight=1)
@@ -247,8 +262,8 @@ def loadSelectMod(window):
     extractButton = Button(frame, text="추출하기")
     extractButton.grid(row=2, column=1)
 
-    modPathList = [modPath.replace('\\', '/') for modPath in glob.glob(modsLocation + '/*') if os.path.isdir(modPath)]
-    if not modPathList: # If No Mod
+    modPathList = [modPath.replace('\\', '/') for modPath in glob.glob(modsLoc + '/*') if os.path.isdir(modPath)]
+    if not modPathList:  # If No Mod
         messagebox.showerror("모드 폴더 찾을 수 없음", "선택한 폴더에 어떤 하위 폴더도 존재하지 않습니다.\n프로그램을 종료합니다.")
         exit(0)
 
@@ -256,7 +271,8 @@ def loadSelectMod(window):
     sep = ' | '
     for modPath in modPathList:
         try:
-            modsNameDict[f"{int(modPath.split('/')[-1]):010d}{sep}{et.parse(modPath + '/About/About.xml').getroot().find('name').text}"] = modPath
+            name = et.parse(modPath + '/About/About.xml').getroot().find('name').text
+            modsNameDict[f"{int(modPath.split('/')[-1]):010d}{sep}{name}"] = modPath
         except (FileNotFoundError, ValueError):
             modsNameDict[f"0000000000{sep}{modPath.split('/')[-1]}"] = modPath
     modsNameDictKeys = list(modsNameDict.keys())
@@ -278,7 +294,8 @@ def loadSelectMod(window):
             modVersionNodeList = list(et.parse(f'{modPath}/LoadFolders.xml').getroot())
             for eachVersionNode in modVersionNodeList:
                 for eachLoad in list(eachVersionNode):
-                    if not eachLoad.text: continue
+                    if not eachLoad.text:
+                        continue
                     path = os.path.join(modPath, eachLoad.text) if eachLoad.text != '/' else modPath
                     try:
                         attr = eachLoad.attrib['IfModActive']
@@ -287,9 +304,11 @@ def loadSelectMod(window):
                     for eachType in os.listdir(path):
                         if eachType in EXTRACTABLE_DIRS:
                             extractableDirPathList.append(os.path.join(path, eachType))
-                            if eachType == "Languages": eachType = "Keyed/Strings"
+                            if eachType == "Languages":
+                                eachType = "Keyed/Strings"
                             name = f"{eachVersionNode.tag} - {eachType}"
-                            if attr: name = f"{name} [모드 의존성: {attr}]"
+                            if attr:
+                                name = f"{name} [모드 의존성: {attr}]"
                             extractableDirNameList.append(name)
 
         except FileNotFoundError:
@@ -299,7 +318,8 @@ def loadSelectMod(window):
                         if eachType in EXTRACTABLE_DIRS:
                             extractableDirPathList.append(os.path.join(eachLoad, eachType))
                             ver = eachLoad.split('\\')[-1] if eachLoad != modPath else "default"
-                            if eachType == "Languages": eachType = "Keyed/Strings"
+                            if eachType == "Languages":
+                                eachType = "Keyed/Strings"
                             extractableDirNameList.append(f"{ver} - {eachType}")
         dirList.set(extractableDirNameList)
 
@@ -317,11 +337,12 @@ def loadSelectMod(window):
 
     extractButton.configure(command=onExtract)
 
+    # noinspection PyUnusedLocal
     def onSearch(evt):
-        modSearch = searchMod.get()
+        modSearch = searchMod.get().lower().replace(' ', '')
 
         if modSearch != "":
-            modShow = [modName for modName in modsNameDictKeys if modSearch in modName]
+            modShow = [modName for modName in modsNameDictKeys if modSearch in modName.lower().replace(' ', '')]
         else:
             modShow = modsNameDictKeys
 
@@ -330,22 +351,23 @@ def loadSelectMod(window):
 
     searchMod.bind("<KeyRelease>", onSearch)
 
+
 def parse_recursive(parent, className, tag, lastTag=None):
     if list(parent):
         tags = [child.tag == 'li' for child in list(parent)]
         texts = [child.text for child in list(parent)]
-        if all(tags) and all(texts) and tags and texts:
+        if False and all(tags) and all(texts) and tags and texts: ##########################################################
             yield className, lastTag, tag, texts
         else:
             num_list = 0
             for child in list(parent):
                 if child.tag == 'li':
-                    yield from parse_recursive(child, className, tag + '.' + str(num_list), str(num_list))
+                    yield from parse_recursive(child, className, tag + '.' + str(num_list), lastTag)
                     num_list += 1
                 else:
                     yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
     else:
-        yield className, lastTag, tag, (parent.text if not parent.text is None else "ERROR:{$BLANK TEXT}")
+        yield className, lastTag, tag, (parent.text if parent.text else "ERROR:{$BLANK TEXT}")
 
 
 def extractDefs(root):
@@ -356,12 +378,12 @@ def extractDefs(root):
         try:
             if item.attrib['Abstract'].lower() == 'true':
                 continue
-        except Exception:
+        except KeyError:
             pass
 
         try:
             defName = item.find('defName').text
-        except Exception:
+        except AttributeError:
             continue
 
         className = item.tag
@@ -375,7 +397,8 @@ def extractDefs(root):
 
 
 def loadSelectTags(window):
-    global goExtractList, excludes, defaults, includes, excludeHide, defaultHide, includeHide, dict_class, dict_keyed, list_strings
+    global goExtractList, excludes, defaults, includes
+    global excludeHide, defaultHide, includeHide, dict_class, dict_keyed, list_strings
 
     frame = Frame(window)
     frame.grid(row=0, column=0, sticky=N + S + E + W)
@@ -437,16 +460,15 @@ def loadSelectTags(window):
     def showTexts(evt):
         w = evt.widget
         tag = w.get(int(w.curselection()[0]))
-        # messagebox.showinfo(tag,'\n'.join(dict_tags_text[tag]))
         dialog = Toplevel(window)
         dialog.title(tag)
         text = Text(dialog)
         text.insert(1.0, '\n'.join(sorted(list(set(dict_tags_text[tag])))))
         text.configure(state='disabled')
         text.bind("<Escape>", lambda x: dialog.destroy())
-        text.bind("<q>", lambda x: moveTag(tag, 0, diag=dialog))
-        text.bind("<w>", lambda x: moveTag(tag, 1, diag=dialog))
-        text.bind("<e>", lambda x: moveTag(tag, 2, diag=dialog))
+        text.bind("<q>", lambda x: moveTag(tag, 0, dialog=dialog))
+        text.bind("<w>", lambda x: moveTag(tag, 1, dialog=dialog))
+        text.bind("<e>", lambda x: moveTag(tag, 2, dialog=dialog))
         text.focus_set()
         Grid.rowconfigure(dialog, 0, weight=1)
         Grid.columnconfigure(dialog, 0, weight=1)
@@ -461,15 +483,15 @@ def loadSelectTags(window):
         try:
             int(candidate)
             excludes.append(candidate)
-        except Exception:
+        except ValueError:
             defaults.insert(0, candidate)
             break
 
     for _ in range(len(defaults)):
         candidate = defaults.pop(0)
-        if candidate in definedExcludes:
+        if candidate in defExcludes:
             excludes.append(candidate)
-        elif candidate in definedIncludes:
+        elif candidate in defIncludes:
             includes.append(candidate)
         else:
             defaults.append(candidate)
@@ -495,25 +517,29 @@ def loadSelectTags(window):
     includeList.bind("<q>", lambda x: moveTag(includeList.get(includeList.curselection()[0]), 0))
     includeList.bind("<w>", lambda x: moveTag(includeList.get(includeList.curselection()[0]), 1))
 
-    def moveTag(tag, destination, diag=None):
-        if diag: diag.destroy()
+    def moveTag(tag, destination, dialog=None):
+        if dialog:
+            dialog.destroy()
         try:
             toMove = defaults.pop(defaults.index(tag))
-            if destination == 1: return
+            if destination == 1:
+                return
             if defaultList.get(END) == toMove:
                 defaultList.activate(defaultList.size() - 2)
                 defaultList.selection_set(defaultList.size() - 2)
         except ValueError:
             try:
                 toMove = excludes.pop(excludes.index(tag))
-                if destination == 0: return
+                if destination == 0:
+                    return
                 if excludeList.get(END) == toMove:
                     excludeList.activate(excludeList.size() - 2)
                     excludeList.selection_set(excludeList.size() - 2)
             except ValueError:
                 try:
                     toMove = includes.pop(includes.index(tag))
-                    if destination == 2: return
+                    if destination == 2:
+                        return
                     if includeList.get(END) == toMove:
                         includeList.activate(includeList.size() - 2)
                         includeList.selection_set(includeList.size() - 2)
@@ -529,27 +555,22 @@ def loadSelectTags(window):
         if destination == 0:
             for i, v in enumerate(excludeList.get(0, END)):
                 if v == toMove:
+                    excludeList.see(i)
                     break
-            excludeList.see(i)
         elif destination == 0:
             for i, v in enumerate(defaultList.get(0, END)):
                 if v == toMove:
+                    defaultList.see(i)
                     break
-            defaultList.see(i)
         elif destination == 0:
             for i, v in enumerate(includeList.get(0, END)):
                 if v == toMove:
+                    includeList.see(i)
                     break
-            includeList.see(i)
 
     excludeList.bind('<Double-Button-1>', showTexts)
     defaultList.bind('<Double-Button-1>', showTexts)
     includeList.bind('<Double-Button-1>', showTexts)
-
-    def onSelect(evt):
-        w = evt.widget
-        index = int(w.curselection()[0])
-        value = w.get(index)
 
     Label(frame, text="[Q]를 입력해 추출 제외").grid(row=2, column=0)
     Label(frame, text="[W]를 입력해 분류 취소").grid(row=2, column=1)
@@ -568,11 +589,12 @@ def loadSelectTags(window):
             except KeyError:
                 dictTextTag[text] = [tag]
 
+    # noinspection PyUnusedLocal
     def onSearch(evt):
         global excludes, defaults, includes, excludeHide, defaultHide, includeHide
-        tagSearch = searchTag.get()
+        tagSearch = searchTag.get().lower().replace(' ', '')
         tagFlag = (tagSearch != "")
-        textSearch = searchText.get()
+        textSearch = searchText.get().lower().replace(' ', '')
         textFlag = (textSearch != "")
 
         excludes = excludes + excludeHide
@@ -581,22 +603,23 @@ def loadSelectTags(window):
 
         filteredTags = []
         if textFlag:
-            for tags in [dictTextTag[text] for text in dictTextTag.keys() if textSearch in text]:
+            for tags in [dictTextTag[text] for text in dictTextTag.keys() if
+                         textSearch in text.lower().replace(' ', '')]:
                 filteredTags.extend(tags)
             if tagFlag:
-                filteredTags = [tag for tag in list(set(filteredTags)) if tagSearch in tag]
+                filteredTags = [tag for tag in list(set(filteredTags)) if tagSearch in tag.lower().replace(' ', '')]
         elif tagFlag:
-            filteredTags = [tag for tag in dict_tags_text.keys() if tagSearch in tag]
+            filteredTags = [tag for tag in dict_tags_text.keys() if tagSearch in tag.lower().replace(' ', '')]
 
         if textFlag or tagFlag:
             excludeIntersect = list(set(excludes) & set(filteredTags))
-            excludeHide = [tag for tag in excludes if not tag in excludeIntersect]
+            excludeHide = [tag for tag in excludes if tag not in excludeIntersect]
             excludes = excludeIntersect
             defaultIntersect = list(set(defaults) & set(filteredTags))
-            defaultHide = [tag for tag in defaults if not tag in defaultIntersect]
+            defaultHide = [tag for tag in defaults if tag not in defaultIntersect]
             defaults = defaultIntersect
             includeIntersect = list(set(includes) & set(filteredTags))
-            includeHide = [tag for tag in includes if not tag in includeIntersect]
+            includeHide = [tag for tag in includes if tag not in includeIntersect]
             includes = includeIntersect
         else:
             excludeHide = []
@@ -614,7 +637,66 @@ def loadSelectTags(window):
         frame.destroy()
         loadSelectExport(window)
 
-    Button(frame, text="태그 선택 완료", command=finishTag).grid(row=4, column=1)
+    Button(frame, text="태그 선택 완료", command=finishTag).grid(row=4, column=1, sticky=N + S + E + W, padx=2, pady=2)
+
+    def loadTagList():
+        global excludes, defaults, includes
+        if not messagebox.askyesno("태그 분류 불러오기",
+                                   "사용자가 사전에 분류했던 태그 분류 작업을 적용합니다.\n" +
+                                   "기존 분류 작업의 내용은 보존되지 않으며, 불러온 분류 파일로 덮어씌워집니다. 정말 진행할까요?"):
+            return
+        fileName = filedialog.askopenfilename(title="불러오기", filetypes=[("태그 분류 작업 파일", "*.tag")])
+        if fileName == "":
+            return
+        try:
+            with open(fileName, 'r') as fin:
+                reads = fin.read().split('\n')
+
+            customExcludes = reads[1].split('/')
+            customIncludes = reads[3].split('/')
+
+            defaults = excludes + defaults + includes
+            excludes = []
+            includes = []
+
+            for _ in range(len(defaults)):
+                candidate = defaults.pop(0)
+                if candidate in customExcludes:
+                    excludes.append(candidate)
+                elif candidate in customIncludes:
+                    includes.append(candidate)
+                else:
+                    defaults.append(candidate)
+
+            excludeVar.set(sorted(excludes))
+            defaultVar.set(sorted(defaults))
+            includeVar.set(sorted(includes))
+            messagebox.showinfo("불러오기 완료", "태그 분류를 성공적으로 불러왔습니다. 기존 작업은 버려졌습니다.")
+        except FileNotFoundError:
+            messagebox.showerror("파일을 열 수 없습니다.", "파일을 여는 중 오류가 발생했습니다.\n파일이 삭제되었거나 이동했을 수 있습니다.")
+            return
+        except IndexError:
+            messagebox.showerror("분류 파일 불러오기 실패", "분류 파일을 불러오는 데 실패하였습니다.\n분류 파일의 형식이 잘못되었을 수 있습니다.")
+            return
+
+    def saveTagList():
+        global excludes, includes
+        fileName = filedialog.asksaveasfilename(title="저장", filetypes=[("태그 분류 작업 파일", "*.tag")])
+        if fileName == "":
+            messagebox.showerror("저장 취소", "저장을 취소하였습니다.")
+            return
+        if fileName[-4:].lower() != '.tag':
+            fileName += '.tag'
+        writings = '\n'.join(("Excludes tag list, split with [/], spacing ignored, case sensitive", '/'.join(excludes),
+                              "Includes tag list, split with [/], spacing ignored, case sensitive", '/'.join(includes)))
+        with open(fileName, 'w') as fin:
+            fin.write(writings)
+        messagebox.showinfo("저장하기 완료", "태그 분류를 성공적으로 저장했습니다.")
+
+    save = Button(frame, command=saveTagList, text="태그 분류 저장하기")
+    load = Button(frame, command=loadTagList, text="태그 분류 불러오기")
+    save.grid(row=4, column=0)
+    load.grid(row=4, column=2)
 
 
 def loadSelectExport(window):
@@ -628,10 +710,10 @@ def loadSelectExport(window):
     for i in range(1):
         Grid.columnconfigure(frame, i, weight=1)
 
-    varDirName = StringVar(value=exportDir)
-    varFileName = StringVar(value=exportFile)
-    varIsNameTODO = BooleanVar(value=isNameTODO)
-    varCollisionOption = IntVar(value=collisionOption)
+    varDirName = StringVar(value=exDir)
+    varFileName = StringVar(value=exFile)
+    varIsNameTODO = BooleanVar(value=isTODO)
+    varCollisionOption = IntVar(value=colOption)
 
     Label(frame, text="결과 폴더 이름 지정").grid(row=0, column=0)
     Entry(frame, textvariable=varDirName).grid(row=1, column=0, sticky=E + W)
@@ -648,12 +730,15 @@ def loadSelectExport(window):
     Label(frame, text="결과 폴더와 파일명이 일치할 경우 파일의 작업 방법").grid(row=6, column=0)
     row7Frame = Frame(frame)
     row7Frame.grid(row=7, column=0)
-    radioButtons = []
     btnTexts = ["중단하기", "덮어쓰기", "병합하기", "참조하기"]
-    tooltips = ["파일 충돌이 발생할 경우, 파일 출력을 중단하고 알림을 표시합니다. 이 경우, 파일 충돌이 발생할 때까지 작성된 파일은 남아 있음에 유의하십시오.",
-                "파일 충돌이 발생할 경우, 해당 파일을 내용을 삭제하고 새로 작성합니다. 이 경우, 기존 파일을 복구할 수 없으므로 사전 백업이 권장됩니다.",
-                "파일 충돌이 발생할 경우, 해당 파일에 새로운 태그들을 추가해 병합합니다. 추출기가 추출하지 않았지만 존재했던 내용은 파일의 하단에 출력됩니다.",
-                "파일 충돌이 발생할 경우, 해당 파일의 내용을 새로 작성하되, 기존 파일에 같은 태그가 있을 경우 해당 내용을 보존합니다. 추출기가 추출하지 않았지만 존재했던 내용은 버려집니다."]
+    tooltips = ["파일 충돌이 발생할 경우, 파일 출력을 중단하고 알림을 표시합니다. " +
+                "이 경우, 파일 충돌이 발생할 때까지 작성된 파일은 남아 있음에 유의하십시오.",
+                "파일 충돌이 발생할 경우, 해당 파일을 내용을 삭제하고 새로 작성합니다. " +
+                "이 경우, 기존 파일을 복구할 수 없으므로 사전 백업이 권장됩니다.",
+                "파일 충돌이 발생할 경우, 해당 파일에 새로운 태그들을 추가해 병합합니다. " +
+                "추출기가 추출하지 않았지만 존재했던 내용은 파일의 하단에 출력됩니다.",
+                "파일 충돌이 발생할 경우, 해당 파일의 내용을 새로 작성하되, 기존 파일에 같은 태그가 있을 경우 해당 내용을 보존합니다. " +
+                "추출기가 추출하지 않았지만 존재했던 내용은 버려집니다."]
     for i, (text, tooltip) in enumerate(zip(btnTexts, tooltips)):
         tmp = Radiobutton(row7Frame, text=text, value=i, variable=varCollisionOption)
         CreateToolTip(tmp, tooltip)
@@ -671,13 +756,14 @@ def loadSelectExport(window):
                 continue  # pass the class
 
             filename = varDirName.get() + '/DefInjected/' + className + '/' + varFileName.get()
-            Path('/'.join((filename).split('/')[:-1])).mkdir(parents=True, exist_ok=True)
+            Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
 
             if varCollisionOption.get() == 0:  # collision -> stop
                 try:
-                    with open(filename, 'r', encoding='UTF8') as fin:
+                    with open(filename, 'r', encoding='UTF8') as _:
                         messagebox.showerror("파일 충돌 발견됨",
-                                             f"다음 폴더의 파일이 존재하여 작업을 중단하였습니다.\n{className}\n\n이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
+                                             f"다음 폴더의 파일이 존재하여 작업을 중단하였습니다.\n{className}\n\n" +
+                                             f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
                         return
                 except FileNotFoundError:
                     pass
@@ -703,12 +789,13 @@ def loadSelectExport(window):
                                 if alreadyDefinedDict[tag][i] != "TODO":
                                     text[i] = alreadyDefinedDict[tag][i]
                             del alreadyDefinedDict[tag]
-                        except:
+                        except TypeError:
                             pass
+                        tmp = [f'    <!-- {text_i} -->{WORD_NEWLINE}    <li>TODO</li>' for text_i in text]
                         writingTextList.append(
-                            f"  <!-- ALPHA:LIST TYPE EXTRACTS -->\n  <{tag}>\n{WORD_NEWLINE.join([f'    <!-- {text_i} -->{WORD_NEWLINE}    <li>TODO</li>' for text_i in text])}\n  </{tag}>"
+                            f"  <{tag}>\n{WORD_NEWLINE.join(tmp)}\n  </{tag}>"
                             if varIsNameTODO.get()
-                            else f"  <{tag}>\n{WORD_NEWLINE.join([f'    <li>{text_i}</li>' for text_i in text])}\n  </{tag}>")
+                            else f"  <{tag}>\n{WORD_NEWLINE.join([f'    <li>{t}</li>' for t in text])}\n  </{tag}>")
                     else:
                         try:
                             writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
@@ -736,9 +823,10 @@ def loadSelectExport(window):
 
             if varCollisionOption.get() == 0:  # collision -> stop
                 try:
-                    with open(filename, 'r', encoding='UTF8') as fin:
+                    with open(filename, 'r', encoding='UTF8') as _:
                         messagebox.showerror("파일 충돌 발견됨",
-                                             f"Keyed 폴더의 파일이 존재하여 작업을 중단하였습니다.\n이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
+                                             f"Keyed 폴더의 파일이 존재하여 작업을 중단하였습니다.\n" +
+                                             f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
                         return
                 except FileNotFoundError:
                     pass
@@ -749,8 +837,9 @@ def loadSelectExport(window):
                 try:
                     for node in list(et.parse(filename).getroot()):
                         if list(node):
-                            messagebox.showerror("list형의 Keyed 노드 발견됨",
-                                                 "본 프로그램은 Keyed 파일의 텍스트에 태그(<>)가 없는 것으로 가정하였습니다. 해당 노드의 번역은 보존되지 않았을 수 있습니다.")
+                            messagebox.showerror("기존 번역에서 내부 노드 발견됨",
+                                                 "본 프로그램은 Keyed 파일의 텍스트에 하위 노드(<>)가 없는 것으로 가정하였습니다. " +
+                                                 "해당 노드의 번역은 보존되지 않았을 수 있습니다.")
                             alreadyDefinedDict[node.tag] = [li.text for li in list(node)]
                         elif node.text != "TODO":
                             alreadyDefinedDict[node.tag] = node.text
@@ -784,9 +873,10 @@ def loadSelectExport(window):
             destination = varDirName.get() + departure.split('Languages\\English')[1]
             if varCollisionOption.get() != 1:  # collision -> not overwrite
                 try:
-                    with open(destination, 'r', encoding='UTF8') as fin:
+                    with open(destination, 'r', encoding='UTF8') as _:
                         messagebox.showerror("파일 충돌 발견됨",
-                                             f"Strings 폴더의 파일이 존재하여 작업을 중단하였습니다.\n이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
+                                             f"Strings 폴더의 파일이 존재하여 작업을 중단하였습니다.\n" +
+                                             f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
                         return
                 except FileNotFoundError:
                     pass
@@ -830,19 +920,18 @@ if __name__ == '__main__':
     Grid.columnconfigure(window, 0, weight=1)
 
     try:
-        modsLocation, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+        modsLoc, defExcludes, defIncludes, exDir, exFile, isTODO, colOption = loadConfig()
     except FileNotFoundError:
         writeConfig()
-        modsLocation, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+        modsLoc, defExcludes, defIncludes, exDir, exFile, isTODO, colOption = loadConfig()
     except ValueError:
-        if messagebox.askyesno("사용자 설정 초기화", "config.dat 파일의 형식이 변경되어 초기화가 필요합니다.\
-\n초기화 진행 시 사용자가 변경한 설정이 유실됩니다.\
-\n필요할 경우 초기화를 진행하기 전에 백업해 주세요.\
-\n설정 초기화를 진행할까요?"):
+        if messagebox.askyesno("사용자 설정 초기화", "config.dat 파일의 형식이 변경되어 초기화가 필요합니다.\n" +
+                                             "초기화 진행 시 사용자가 변경한 설정이 유실됩니다.\n" +
+                                             "필요할 경우 초기화를 진행하기 전에 백업해 주세요.\n설정 초기화를 진행할까요?"):
             writeConfig()
         else:
             exit(0)
-        modsLocation, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+        modsLoc, defExcludes, defIncludes, exDir, exFile, isTODO, colOption = loadConfig()
 
     loadInit(window)
 
