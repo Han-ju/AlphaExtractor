@@ -9,7 +9,7 @@ from tkinter import messagebox
 
 EXTRACTABLE_DIRS = ["Defs", "Languages"]
 CONFIG_VERSION = 2
-EXTRACTOR_VERSION = "0.8.3"
+EXTRACTOR_VERSION = "0.8.4"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -132,7 +132,7 @@ def writeConfig(new_modDir=None, new_exportDir=None, new_exportFile=None,
             isNameTODO = new_isNameTODO
         if new_collisionOption:
             collisionOption = new_collisionOption
-    except ValueError:
+    except (ValueError, FileNotFoundError):
         modDir = ""
         definedExcludes = []
         definedIncludes = "label/description/customLabel/rulesStrings/slateRef/reportString/jobString/verb/labelNoun" \
