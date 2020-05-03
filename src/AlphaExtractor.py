@@ -9,7 +9,7 @@ from tkinter import messagebox
 
 EXTRACTABLE_DIRS = ["Defs", "Languages"]
 CONFIG_VERSION = 2
-EXTRACTOR_VERSION = "0.8.2"
+EXTRACTOR_VERSION = "0.8.3"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -768,7 +768,6 @@ def loadSelectExport(window):
                 except FileNotFoundError:
                     pass
 
-            residueList = ["\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 -->\n\n"]
             alreadyDefinedDict = {}
             if varCollisionOption.get() > 1:  # collision -> merge/refer
                 try:
@@ -810,8 +809,16 @@ def loadSelectExport(window):
             with open(filename, 'w', encoding='UTF8') as fin:
                 fin.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
                 fin.write('\n'.join(writingTextList))
-                if varCollisionOption.get() == 2 and len(residueList) > 1:  # collision -> merge
-                    fin.write('\n'.join(residueList))
+                if varCollisionOption.get() == 2 and alreadyDefinedDict:  # collision -> merge
+                    fin.write("\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 \n\n")
+                    for tag, text in alreadyDefinedDict.items():
+                        if type(text) == list:
+                            fin.write(f"  <{tag}>\n")
+                            fin.write('\n'.join([f"    <li>{eachText}</li>" for eachText in text]))
+                            fin.write(f"\n  </{tag}>\n")
+                        else:
+                            fin.write(f"  <{tag}>{text}</{tag}>\n")
+                    fin.write("  -->")
                 fin.write("\n</LanguageData>")
 
             savedList.append(className)
@@ -831,7 +838,6 @@ def loadSelectExport(window):
                 except FileNotFoundError:
                     pass
 
-            residueList = ["\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 -->\n\n"]
             alreadyDefinedDict = {}
             if varCollisionOption.get() > 1:  # collision -> merge/refer
                 try:
@@ -862,8 +868,16 @@ def loadSelectExport(window):
             with open(filename, 'w', encoding='UTF8') as fin:
                 fin.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
                 fin.write('\n'.join(writingTextList))
-                if varCollisionOption.get() == 2 and len(residueList) > 1:  # collision -> merge
-                    fin.write('\n'.join(residueList))
+                if varCollisionOption.get() == 2 and alreadyDefinedDict:  # collision -> merge
+                    fin.write("\n\n  <!-- 알파의 추출기는 추출하지 않았지만 이미 존재했던 노드들 \n\n")
+                    for tag, text in alreadyDefinedDict.items():
+                        if type(text) == list:
+                            fin.write(f"  <{tag}>\n")
+                            fin.write('\n'.join([f"    <li>{eachText}</li>" for eachText in text]))
+                            fin.write(f"\n  </{tag}>\n")
+                        else:
+                            fin.write(f"  <{tag}>{text}</{tag}>\n")
+                    fin.write("  -->")
                 fin.write("\n</LanguageData>")
 
             savedList.append("Keyed")
