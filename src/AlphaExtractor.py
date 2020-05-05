@@ -367,7 +367,7 @@ def parse_recursive(parent, className, tag, lastTag=None):
                 else:
                     yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
     else:
-        yield className, lastTag, tag, (parent.text if parent.text else "ERROR:{$BLANK TEXT}")
+        yield className, lastTag, tag, (parent.text if parent.text else "")
 
 
 def extractDefs(root):
@@ -444,7 +444,7 @@ def loadSelectTags(window):
                     messagebox.showerror("에러 발생", str(e) + "\n파일명: " + path)
                     return
                 for node in nodes:
-                    dict_keyed[node.tag] = node.text
+                    dict_keyed[node.tag] = node.text if node.text else ""
             list_strings = glob.glob(goExtract + "\\English\\Strings\\**\\*.txt", recursive=True)
         else:
             messagebox.showerror("에러 발생", "Patches 등 Defs, Keyed 이외의 모든 폴더는 아직 추출할 수 없습니다.\n자동으로 제외합니다.")
