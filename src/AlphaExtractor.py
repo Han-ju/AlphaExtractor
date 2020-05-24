@@ -7,10 +7,11 @@ from tkinter import *
 from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import font
+import urllib.request
 
 EXTRACTABLE_DIRS = ["Defs", "Languages"]
 CONFIG_VERSION = 3
-EXTRACTOR_VERSION = "0.8.5"
+EXTRACTOR_VERSION = "0.8.6"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -276,7 +277,7 @@ def loadSelectMod(window):
     extractButton.grid(row=2, column=1)
 
     corePathList = [p.replace('\\', '/') for p in glob.glob(gameLoc + '/Data/*') if os.path.isdir(p)]
-    manualModPathList = [p.replace('\\', '/') for p in glob.glob(modsLoc + '/Mods/*') if os.path.isdir(p)]
+    manualModPathList = [p.replace('\\', '/') for p in glob.glob(gameLoc + '/Mods/*') if os.path.isdir(p)]
     workshopModPathList = [p.replace('\\', '/') for p in glob.glob(modsLoc + '/*') if os.path.isdir(p)]
     if not (corePathList + manualModPathList + workshopModPathList):  # If No Mod
         messagebox.showerror("모드 폴더 찾을 수 없음", "선택한 폴더에 어떤 하위 폴더도 존재하지 않습니다.\n프로그램을 종료합니다.")
@@ -286,10 +287,11 @@ def loadSelectMod(window):
     sep = ' | '
     for modPath in corePathList:
         modsNameDict[f"   CORE   {sep}{modPath.split('/')[-1]}"] = modPath
+    print(manualModPathList)
     for modPath in manualModPathList + workshopModPathList:
         try:
             name = et.parse(modPath + '/About/About.xml').getroot().find('name').text
-            modsNameDict[f"{int(modPath.split('/')[-1]):010d}{sep}{name}"] = modPath
+            modsNameDict[f"{int(modPath.split('/')[-1]):10d}{sep}{name}"] = modPath
         except (FileNotFoundError, ValueError, AttributeError):
             modsNameDict[f"          {sep}{modPath.split('/')[-1]}"] = modPath
     modsNameDictKeys = list(modsNameDict.keys())
@@ -379,7 +381,7 @@ def parse_recursive(parent, className, tag, lastTag=None):
             else:
                 yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
     else:
-        yield className, lastTag, tag, (parent.text if parent.text else "")
+        yield className, lastTag, tag, (parent.text.replace('<', '&lt;').replace('>', '&rt;') if parent.text else "")
 
 
 def extractDefs(root):
@@ -923,8 +925,6 @@ def loadSelectExport(window):
 
 
 if __name__ == '__main__':
-    easterEgg = 0
-
     goExtractList = []
 
     dict_class = {}
@@ -961,4 +961,16 @@ if __name__ == '__main__':
 
     loadInit(window)
 
+    try:
+        versionURL = "https://raw.githubusercontent.com/dlgks224/AlphaExtractor/master/CURRENT_VERSION"
+        serverVersion = urllib.request.urlopen(versionURL).read().decode("utf-8")
+        if EXTRACTOR_VERSION != serverVersion:
+            if messagebox.askyesno("업데이트 가능",
+                                   "새로운 버전의 추출기가 발견되었습니다.\n\n" + \
+                                   f"업데이트 버전 : {EXTRACTOR_VERSION} -> {serverVersion}\n\n다운로드 페이지를 열까요?"):
+                import webbrowser
+                webbrowser.open_new('https://github.com/dlgks224/AlphaExtractor/releases')
+                exit(0)
+    except (urllib.error.HTTPError, urllib.error.URLError):
+        pass
     window.mainloop()
