@@ -1,5 +1,6 @@
 import glob
 import os
+import sys
 import shutil
 import xml.etree.ElementTree as et
 from pathlib import Path
@@ -99,6 +100,15 @@ class CreateToolTip(object):
         self.tw = None
         if tw:
             tw.destroy()
+
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 
 def loadConfig(fileName='config.dat'):
@@ -290,7 +300,6 @@ def loadSelectMod(window):
     sep = ' | '
     for modPath in corePathList:
         modsNameDict[f"   CORE   {sep}{modPath.split('/')[-1]}"] = modPath
-    print(manualModPathList)
     for modPath in manualModPathList + workshopModPathList:
         try:
             name = et.parse(modPath + '/About/About.xml').getroot().find('name').text
@@ -389,7 +398,7 @@ def parse_recursive(parent, className, tag, lastTag=None):
 
 def extractDefs(root):
     if 'value' != root.tag and 'Defs' != root.tag:
-        raise ValueError("첫 태그가 Defs가 아닙니다. 오류를 발생시킨 모드 이름과 파일명을 Alpha에게 제보해주세요.")
+        raise ValueError("첫 태그가 Defs가 아닙니다. 오류를 발생시킨 모드 이름을 Alpha에게 제보해주세요.")
 
     for item in list(root):
         try:
@@ -945,7 +954,7 @@ if __name__ == '__main__':
     window = Tk()
     window.title("Alpha의 림월드 모드 언어 추출기")
     window.geometry("800x400+100+100")
-    window.iconbitmap('icon.ico')
+    window.iconbitmap(resource_path('icon.ico'))
     Grid.rowconfigure(window, 0, weight=1)
     Grid.columnconfigure(window, 0, weight=1)
 
@@ -967,7 +976,7 @@ if __name__ == '__main__':
 
     try:
         versionURL = "https://raw.githubusercontent.com/dlgks224/AlphaExtractor/master/CURRENT_VERSION"
-        serverVersion = urllib.request.urlopen(versionURL).read().decode("utf-8")
+        serverVersion = urllib.request.urlopen(versionURL).read().decode("utf-8").replace('\n', '')
         if EXTRACTOR_VERSION != serverVersion:
             if messagebox.askyesno("업데이트 가능",
                                    "새로운 버전의 추출기가 발견되었습니다.\n\n" + \
