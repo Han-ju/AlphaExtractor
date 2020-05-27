@@ -241,6 +241,9 @@ version = {EXTRACTOR_VERSION}"""
             messagebox.showerror("경로가 선택되지 않음", "적어도 하나 이상의 경로를 지정해 주십시오.")
             return
         writeConfig(new_gameDir=gameLocation.get(), new_modDir=modsLocation.get())
+        global gameLoc, modsLoc
+        gameLoc = gameLocation.get()
+        modsLoc = modsLocation.get()
         frame.destroy()
         loadSelectMod(window)
 
@@ -260,7 +263,7 @@ def loadSelectMod(window):
 
     modListBoxValue = StringVar()
     modListBox = Listbox(frame, selectborderwidth=3, listvariable=modListBoxValue,
-                         font=font.Font(family="Courier", size=12))
+                         font=font.Font(family="Courier", size=10))
     modListBox.grid(row=1, column=0, sticky=N + S + E + W)
 
     searchMod = EntryHint(frame, "[모드 검색]", justify='center')
@@ -381,7 +384,7 @@ def parse_recursive(parent, className, tag, lastTag=None):
             else:
                 yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
     else:
-        yield className, lastTag, tag, (parent.text.replace('<', '&lt;').replace('>', '&rt;') if parent.text else "")
+        yield className, lastTag, tag, (parent.text.replace('<', '&lt;').replace('&', '&amp;') if parent.text else "")
 
 
 def extractDefs(root):
@@ -942,6 +945,7 @@ if __name__ == '__main__':
     window = Tk()
     window.title("Alpha의 림월드 모드 언어 추출기")
     window.geometry("800x400+100+100")
+    window.iconbitmap('icon.ico')
     Grid.rowconfigure(window, 0, weight=1)
     Grid.columnconfigure(window, 0, weight=1)
 
@@ -973,4 +977,6 @@ if __name__ == '__main__':
                 exit(0)
     except (urllib.error.HTTPError, urllib.error.URLError):
         pass
+
+
     window.mainloop()
