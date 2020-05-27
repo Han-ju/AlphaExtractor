@@ -11,7 +11,7 @@ import urllib.request
 
 EXTRACTABLE_DIRS = ["Defs", "Languages"]
 CONFIG_VERSION = 3
-EXTRACTOR_VERSION = "0.8.6"
+EXTRACTOR_VERSION = "0.8.7"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
