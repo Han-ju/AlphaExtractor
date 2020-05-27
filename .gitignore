@@ -1,5 +1,6 @@
 src/*/
 .idea
+AlphaExtractor.exe
 AlphaExtractor.spec
 Compile.bat
 config.dat
