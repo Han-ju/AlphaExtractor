@@ -1,6 +1,5 @@
 import glob
 import os
-import sys
 import shutil
 import xml.etree.ElementTree as et
 from pathlib import Path
@@ -10,9 +9,9 @@ from tkinter import messagebox
 from tkinter import font
 import urllib.request
 
-EXTRACTABLE_DIRS = ["Defs", "Languages"]
+EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 3
-EXTRACTOR_VERSION = "0.8.8"
+EXTRACTOR_VERSION = "0.9.0"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -383,17 +382,17 @@ def loadSelectMod(window):
     searchMod.bind("<KeyRelease>", onSearch)
 
 
-def parse_recursive(parent, className, tag, lastTag=None):
+def parse_recursive(parent, className, tag, lastTag=None, unKnownLiNo=False):
     if list(parent):
         num_list = 0
         for child in list(parent):
-            if child.tag == 'li':
+            if child.tag == 'li' and not unKnownLiNo:
                 yield from parse_recursive(child, className, tag + '.' + str(num_list), lastTag)
                 num_list += 1
             else:
                 yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
     else:
-        yield className, lastTag, tag, (parent.text.replace('<', '&lt;').replace('&', '&amp;') if parent.text else "")
+        yield className, lastTag, tag, (parent.text.replace('&', '&amp;').replace('<', '&lt;') if parent.text else "")
 
 
 def extractDefs(root):
@@ -420,6 +419,98 @@ def extractDefs(root):
                 raise ValueError("Def임에도 불구하고 클래스 이름이 없습니다. 오류를 발생시킨 모드 이름과 파일명을 Alpha에게 제보해주세요.")
 
         yield from parse_recursive(item, className, defName)
+
+
+def xpathAnalysis(xpath):
+    try:
+        if '..' in xpath:
+            return False, 1
+        if '(' in xpath:
+            return False, 2
+        defNameIndex = -1
+        xpath = xpath.split('/')
+        for i in range(len(xpath)):
+            if '[' in xpath[i]:
+                if 'defName' in xpath[i]:
+                    defNameIndex = i
+                    className, xpath[i] = xpath[i].split('[')
+                    xpath[i] = xpath[i].split(']')[0]
+                    if '!=' in xpath[i] or xpath[i].count('=') > 1:
+                        return False, 3
+                    isThereDefName = False
+                    defName = None
+                    for elem in xpath[i].split('='):
+                        if elem.replace(' ', '') == 'defName':
+                            isThereDefName = True
+                        else:
+                            defName = eval(elem)
+                    if not isThereDefName or not defName:
+                        return False, 4
+                    xpath[i] = defName
+                elif 'li' in xpath[i]:
+                    xpath[i] = xpath[i].split('[')[1].split(']')[0]
+                    if '!=' in xpath[i] or xpath[i].count('=') > 1:
+                        return False, 5
+                    for elem in xpath[i].split('='):
+                        if '\"' in elem or '\'' in elem:
+                            xpath[i] = eval(elem)
+                elif defNameIndex != -1:
+                    return False, 6
+        if defNameIndex == -1:
+            return False, 7
+        return className, xpath[defNameIndex:]
+    except Exception:
+        return False, -1
+
+
+def analysisOperation(node, modDepend):
+    if (operation := node.attrib['Class']) == 'PatchOperationFindMod':
+        modDepend.extend([li.text for li in list(node.find('mods'))])
+        yield from analysisOperation(node.find('match'), modDepend)
+    elif operation == 'PatchOperationSequence':
+        for li in list(node.find('operations')):
+            yield from analysisOperation(li, modDepend)
+    elif operation == 'PatchOperationInsert':
+        try:
+            xpath = node.find('xpath').text
+            className, tagList = xpathAnalysis(xpath)
+            if not className:
+                print(f'다음 xpath는 {tagList}번 사유로 파싱할 수 없음: {xpath}')
+                return
+            yield from parse_recursive(node.find('value'), className, '.'.join(tagList[:-1]), lastTag=tagList[-2], unKnownLiNo=True)
+        except Exception as e:
+            print(e)
+            return
+    elif operation == 'PatchOperationAdd':
+        try:
+            xpath = node.find('xpath').text
+            if xpath.replace('/', '') == 'Defs':
+                yield from extractDefs(node.find('value'))
+            className, tagList = xpathAnalysis(xpath)
+            if not className:
+                print(f'다음 xpath는 {tagList}번 사유로 파싱할 수 없음: {xpath}')
+                return
+            yield from parse_recursive(node.find('value'), className, '.'.join(tagList), lastTag=tagList[-1])
+        except Exception as e:
+            print(e)
+            return
+    elif operation in ['PatchOperationReplace', 'PatchOperationRemove']:
+        try:
+            xpath = node.find('xpath').text
+            print('노드를 변경하는 패치는 추출하지 않음, xpath:', xpath)
+        except Exception as e:
+            print('노드를 변경하는 패치는 추출하지 않음, xpath 존재하지 않음')
+            return
+    else:
+        return
+
+
+def extractPatches(root):
+    assert 'Patch' == root.tag, "첫 태그가 Patch가 아닙니다. 오류를 발생시킨 모드 이름을 Alpha에게 제보해주세요."
+
+    for item in list(root):
+        assert 'Operation' == item.tag, "Patch 하위 태그가 Operation이 아닙니다. 오류를 발생시킨 모드 이름을 Alpha에게 제보해주세요."
+        yield from analysisOperation(item, [])
 
 
 def loadSelectTags(window):
@@ -472,8 +563,33 @@ def loadSelectTags(window):
                 for node in nodes:
                     dict_keyed[node.tag] = node.text if node.text else ""
             list_strings = glob.glob(goExtract + "\\English\\Strings\\**\\*.txt", recursive=True)
+
+        elif goExtract.split('\\')[-1] == 'Patches':
+            GoExtractLists = glob.glob(goExtract + "/**/*.xml", recursive=True)
+            for path in GoExtractLists:
+                try:
+                    extracts = extractPatches(et.parse(path).getroot())
+                except ValueError as e:
+                    messagebox.showerror("에러 발생", str(e) + "\n파일명: " + path)
+                    return
+
+                for extract in extracts:
+                    if extract:
+                        className, lastTag, tag, text = extract
+                    else:
+                        continue
+                    try:
+                        dict_class[className].append((lastTag, tag, text))
+                    except KeyError:
+                        dict_class[className] = [(lastTag, tag, text)]
+                    if type(text) == list:
+                        text = WORD_NEWLINE.join(text)
+                    try:
+                        dict_tags_text[lastTag].append(text)
+                    except KeyError:
+                        dict_tags_text[lastTag] = [text]
         else:
-            messagebox.showerror("에러 발생", "Patches 등 Defs, Keyed 이외의 모든 폴더는 아직 추출할 수 없습니다.\n자동으로 제외합니다.")
+            messagebox.showerror("에러 발생", "Defs, Patches, Keyed, Strings 이외의 폴더는 아직 추출할 수 없습니다.\n자동으로 제외합니다.")
 
     if dict_tags_text == {}:
         if dict_keyed or list_strings:
@@ -986,6 +1102,5 @@ if __name__ == '__main__':
                 exit(0)
     except (urllib.error.HTTPError, urllib.error.URLError):
         pass
-
 
     window.mainloop()
