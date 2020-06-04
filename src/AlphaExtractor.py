@@ -11,7 +11,7 @@ import urllib.request
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 3
-EXTRACTOR_VERSION = "0.9.0"
+EXTRACTOR_VERSION = "0.9.1"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -401,6 +401,10 @@ def extractDefs(root):
 
     for item in list(root):
         try:
+            parentDefs[item.attrib['Name']] = item
+        except KeyError:
+            pass
+        try:
             if item.attrib['Abstract'].lower() == 'true':
                 continue
         except KeyError:
@@ -417,6 +421,11 @@ def extractDefs(root):
                 className = item.attrib['Class']
             except Exception:
                 raise ValueError("Def임에도 불구하고 클래스 이름이 없습니다. 오류를 발생시킨 모드 이름과 파일명을 Alpha에게 제보해주세요.")
+
+        try:
+            yield from parse_recursive(parentDefs[item.attrib['ParentName']], className, defName)
+        except KeyError:
+            pass
 
         yield from parse_recursive(item, className, defName)
 
@@ -1053,6 +1062,8 @@ def loadSelectExport(window):
 
 
 if __name__ == '__main__':
+    parentDefs = {}
+
     goExtractList = []
 
     dict_class = {}
