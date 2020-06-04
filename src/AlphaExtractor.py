@@ -13,7 +13,7 @@ import openpyxl
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 4
-EXTRACTOR_VERSION = "0.9.2"
+EXTRACTOR_VERSION = "0.9.3"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -872,11 +872,11 @@ def loadSelectExport(window):
     varExportType = IntVar(value=exType)
     varCollisionOption = IntVar(value=colOption)
 
-    Label(frame, text="결과 폴더 이름 지정").grid(row=0, column=0)
-    Entry(frame, textvariable=varDirName).grid(row=1, column=0, sticky=E + W)
+    Label(frame, text="결과를 저장할 폴더의 이름을 지정하세요").grid(row=0, column=0)
+    Entry(frame, textvariable=varDirName, justify='center').grid(row=1, column=0, sticky=E + W)
 
-    Label(frame, text="결과 파일 이름 지정, 적절한 확장자[.xml 혹은 .xlsx]를 끝에 붙일 것").grid(row=2, column=0)
-    Entry(frame, textvariable=varFileName).grid(row=3, column=0, sticky=E + W)
+    Label(frame, text="결과 파일의 이름을 지정하세요 (.xml / .xlsx와 같은 확장자를 붙일 필요는 없습니다.)").grid(row=2, column=0)
+    Entry(frame, textvariable=varFileName, justify='center').grid(row=3, column=0, sticky=E + W)
 
     Label(frame, text="추출한 노드의 출력 방식 지정").grid(row=4, column=0)
     row5Frame = Frame(frame)
@@ -894,7 +894,7 @@ def loadSelectExport(window):
                 "파일 충돌이 발생할 경우, 해당 파일을 내용을 삭제하고 새로 작성합니다. " +
                 "이 경우, 기존 파일을 복구할 수 없으므로 사전 백업이 권장됩니다.",
                 "파일 충돌이 발생할 경우, 해당 파일에 새로운 태그들을 추가해 병합합니다. " +
-                "추출기가 추출하지 않았지만 존재했던 내용은 파일의 하단에 출력됩니다.",
+                "추출기가 추출하지 않았지만 존재했던 내용은 파일의 하단에 출력됩니다. xlsx 출력 모드에서는 참조하기로 적용됩니다.",
                 "파일 충돌이 발생할 경우, 해당 파일의 내용을 새로 작성하되, 기존 파일에 같은 태그가 있을 경우 해당 내용을 보존합니다. " +
                 "추출기가 추출하지 않았지만 존재했던 내용은 버려집니다."]
     for i, (text, tooltip) in enumerate(zip(btnTexts, tooltips)):
@@ -913,7 +913,7 @@ def loadSelectExport(window):
             if isThereNoIncludes:
                 continue  # pass the class
 
-            filename = varDirName.get() + '/DefInjected/' + className + '/' + varFileName.get()
+            filename = varDirName.get() + '/DefInjected/' + className + '/' + varFileName.get() + '.xml'
             Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
 
             if varCollisionOption.get() == 0:  # collision -> stop
@@ -980,7 +980,7 @@ def loadSelectExport(window):
 
         # Keyed
         if len(dict_keyed) > 0:
-            filename = varDirName.get() + '/Keyed/' + varFileName.get()
+            filename = varDirName.get() + '/Keyed/' + varFileName.get() + '.xml'
             Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
 
             if varCollisionOption.get() == 0:  # collision -> stop
@@ -1053,7 +1053,7 @@ def loadSelectExport(window):
         return 0, savedList
 
     def exportXlsx():
-        filename = varDirName.get() + '/' + varFileName.get()
+        filename = varDirName.get() + '/' + varFileName.get() + '.xlsx'
 
         alreadyDefinedDict = {}
         if os.path.exists(filename):
@@ -1063,12 +1063,12 @@ def loadSelectExport(window):
                 with open(filename, "rb") as f:
                     ioFile = io.BytesIO(f.read())
                 ws = openpyxl.load_workbook(ioFile, read_only=True).active
-                for cn, tn, pt, tt in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
-                    if cn or tn or pt or tt:
+                for row in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
+                    if any(row):
                         try:
-                            alreadyDefinedDict[cn][tn] = (pt, tt)
+                            alreadyDefinedDict[row[0]][row[1]] = row[3]
                         except KeyError:
-                            alreadyDefinedDict[cn] = {tn: (pt, tt)}
+                            alreadyDefinedDict[row[0]] = {row[1]: row[3]}
 
         Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
         wb = openpyxl.Workbook()
@@ -1086,10 +1086,6 @@ def loadSelectExport(window):
         ws.cell(row=1, column=3).value = "변수"
         ws.cell(row=1, column=4).value = "내용물"
         ws.cell(row=1, column=5).value = "번역"
-        ws.cell(row=1, column=6).value = "변경 전 원문"
-        ws.cell(row=1, column=7).value = "변경 전 번역문"
-        ws.cell(row=1, column=8).value = "변경된 원문 개수"
-        ws.cell(row=2, column=8).value = "=COUNTA(F:F)-1"
 
         for i, (className, tag, text) in enumerate(writingList):
             ws.cell(row=i + 2, column=1).value = className + '+' + tag
@@ -1098,23 +1094,9 @@ def loadSelectExport(window):
             ws.cell(row=i + 2, column=4).value = text
             if alreadyDefinedDict:
                 try:
-                    if (already := alreadyDefinedDict[className][tag])[0] == text:
-                        ws.cell(row=i + 2, column=5).value = already[1]
-                    else:
-                        ws.cell(row=i + 2, column=6).value = already[0]
-                        ws.cell(row=i + 2, column=7).value = already[1]
-                    del alreadyDefinedDict[className][tag]
+                    ws.cell(row=i + 2, column=5).value = alreadyDefinedDict[className][tag]
                 except KeyError:
                     pass
-
-        for className, tagDict in alreadyDefinedDict.items():
-            for tag, (text, translation) in tagDict.items():
-                i += 1
-                ws.cell(row=i + 2, column=1).value = className + '+' + tag
-                ws.cell(row=i + 2, column=2).value = className
-                ws.cell(row=i + 2, column=3).value = tag
-                ws.cell(row=i + 2, column=6).value = text
-                ws.cell(row=i + 2, column=7).value = translation
 
         try:
             wb.save(filename)
