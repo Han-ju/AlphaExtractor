@@ -1,5 +1,6 @@
 import glob
 import os
+import io
 import shutil
 import xml.etree.ElementTree as et
 from pathlib import Path
@@ -8,12 +9,17 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import font
 import urllib.request
+import openpyxl
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
-CONFIG_VERSION = 3
-EXTRACTOR_VERSION = "0.9.1"
+CONFIG_VERSION = 4
+EXTRACTOR_VERSION = "0.9.2"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
+
+EXPORT_XML_PLAIN = 0
+EXPORT_XML_ANNOTATION = 1
+EXPORT_XLSX = 2
 
 
 # noinspection PyUnusedLocal
@@ -123,17 +129,17 @@ def loadConfig(fileName='config.dat'):
     definedIncludes = configs[11].replace(' ', '').split('/')
     exportDir = configs[13]
     exportFile = configs[15]
-    isNameTODO = (configs[17] == 'True')
+    exportType = int(configs[17])
     collisionOption = int(configs[19])
 
-    return gameDir, modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption
+    return gameDir, modDir, definedExcludes, definedIncludes, exportDir, exportFile, exportType, collisionOption
 
 
 # noinspection PyShadowingNames
 def writeConfig(new_gameDir=None, new_modDir=None, new_exportDir=None, new_exportFile=None,
-                new_isNameTODO=None, new_collisionOption=None, fileName="config.dat"):
+                new_exportType=None, new_collisionOption=None, fileName="config.dat"):
     try:
-        gameDir, modDir, definedExcludes, definedIncludes, exportDir, exportFile, isNameTODO, collisionOption = loadConfig()
+        gameDir, modDir, definedExcludes, definedIncludes, exportDir, exportFile, exportType, collisionOption = loadConfig()
         if new_gameDir:
             gameDir = new_gameDir
         if new_modDir:
@@ -142,9 +148,9 @@ def writeConfig(new_gameDir=None, new_modDir=None, new_exportDir=None, new_expor
             exportDir = new_exportDir
         if new_exportFile:
             exportFile = new_exportFile
-        if str(new_isNameTODO):
-            isNameTODO = new_isNameTODO
-        if new_collisionOption:
+        if new_exportType is not None:
+            exportType = new_exportType
+        if new_collisionOption is not None:
             collisionOption = new_collisionOption
     except (ValueError, FileNotFoundError):
         gameDir = "C:/Program Files (x86)/Steam/steamapps/common/RimWorld"
@@ -167,7 +173,7 @@ def writeConfig(new_gameDir=None, new_modDir=None, new_exportDir=None, new_expor
                           "/renounceTitleMessage/royalFavorLabel/letterTitle".split('/')
         exportDir = "extracted"
         exportFile = "alpha.xml"
-        isNameTODO = "True"
+        exportType = 0
         collisionOption = 0
 
     configs = f"""Alpha's Extractor Configure file
@@ -186,8 +192,8 @@ Export directory [string, split with '/']
 {exportDir}
 Export filename
 {exportFile}
-Is Name TODO [Boolean, True/False]
-{isNameTODO}
+Export type [int, 0:xml(plain text), 1:xml(annotated text + "TODO"), 2:xlsx(RimWaldo_form)]
+{exportType}
 Option file collision  [int, 0:Stop, 1:Overwrite, 2:Merge, 3:Refer]
 {collisionOption}"""
 
@@ -863,20 +869,21 @@ def loadSelectExport(window):
 
     varDirName = StringVar(value=exDir)
     varFileName = StringVar(value=exFile)
-    varIsNameTODO = BooleanVar(value=isTODO)
+    varExportType = IntVar(value=exType)
     varCollisionOption = IntVar(value=colOption)
 
     Label(frame, text="결과 폴더 이름 지정").grid(row=0, column=0)
     Entry(frame, textvariable=varDirName).grid(row=1, column=0, sticky=E + W)
 
-    Label(frame, text="결과 파일 이름 지정, [.xml]을 끝에 붙일 것").grid(row=2, column=0)
+    Label(frame, text="결과 파일 이름 지정, 적절한 확장자[.xml 혹은 .xlsx]를 끝에 붙일 것").grid(row=2, column=0)
     Entry(frame, textvariable=varFileName).grid(row=3, column=0, sticky=E + W)
 
-    Label(frame, text="번역해야 할 부분의 텍스트 지정").grid(row=4, column=0)
+    Label(frame, text="추출한 노드의 출력 방식 지정").grid(row=4, column=0)
     row5Frame = Frame(frame)
     row5Frame.grid(row=5, column=0)
-    Radiobutton(row5Frame, text="TODO", value=True, variable=varIsNameTODO).grid(row=0, column=0)
-    Radiobutton(row5Frame, text="원문", value=False, variable=varIsNameTODO).grid(row=0, column=1)
+    Radiobutton(row5Frame, text="xml [원문]", value=EXPORT_XML_PLAIN, variable=varExportType).grid(row=0, column=0)
+    Radiobutton(row5Frame, text="xml [원문 주석 + TODO]", value=EXPORT_XML_ANNOTATION, variable=varExportType).grid(row=0, column=1)
+    Radiobutton(row5Frame, text="xlsx [림왈도 서식]", value=EXPORT_XLSX, variable=varExportType).grid(row=0, column=2)
 
     Label(frame, text="결과 폴더와 파일명이 일치할 경우 파일의 작업 방법").grid(row=6, column=0)
     row7Frame = Frame(frame)
@@ -912,10 +919,7 @@ def loadSelectExport(window):
             if varCollisionOption.get() == 0:  # collision -> stop
                 try:
                     with open(filename, 'r', encoding='UTF8') as _:
-                        messagebox.showerror("파일 충돌 발견됨",
-                                             f"다음 폴더의 파일이 존재하여 작업을 중단하였습니다.\n{className}\n\n" +
-                                             f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
-                        return
+                        return 1, (className, WORD_NEWLINE.join(savedList))
                 except FileNotFoundError:
                     pass
 
@@ -944,17 +948,17 @@ def loadSelectExport(window):
                         tmp = [f'    <!-- {text_i} -->{WORD_NEWLINE}    <li>TODO</li>' for text_i in text]
                         writingTextList.append(
                             f"  <{tag}>\n{WORD_NEWLINE.join(tmp)}\n  </{tag}>"
-                            if varIsNameTODO.get()
+                            if varExportType.get() == 1
                             else f"  <{tag}>\n{WORD_NEWLINE.join([f'    <li>{t}</li>' for t in text])}\n  </{tag}>")
                     else:
                         try:
                             writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
-                                                   if varIsNameTODO.get()
+                                                   if varExportType.get() == 1
                                                    else f"  <{tag}>{alreadyDefinedDict[tag]}</{tag}>")
                             del alreadyDefinedDict[tag]
                         except KeyError:
                             writingTextList.append(f"  <!-- {text} -->\n  <{tag}>TODO</{tag}>"
-                                                   if varIsNameTODO.get()
+                                                   if varExportType.get() == 1
                                                    else f"  <{tag}>{text}</{tag}>")
 
             with open(filename, 'w', encoding='UTF8') as fin:
@@ -982,10 +986,7 @@ def loadSelectExport(window):
             if varCollisionOption.get() == 0:  # collision -> stop
                 try:
                     with open(filename, 'r', encoding='UTF8') as _:
-                        messagebox.showerror("파일 충돌 발견됨",
-                                             f"Keyed 폴더의 파일이 존재하여 작업을 중단하였습니다.\n" +
-                                             f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
-                        return
+                        return 1, ("Keyed", WORD_NEWLINE.join(savedList))
                 except FileNotFoundError:
                     pass
 
@@ -1008,12 +1009,12 @@ def loadSelectExport(window):
                 text = text.replace('<', '&lt;')
                 try:
                     writingTextList.append(f"  <!-- {text} -->\n  <{tag}>{alreadyDefinedDict[tag]}</{tag}>"
-                                           if varIsNameTODO.get()
+                                           if varExportType.get() == 1
                                            else f"  <{tag}>{alreadyDefinedDict[tag]}</{tag}>")
                     del alreadyDefinedDict[tag]
                 except KeyError:
                     writingTextList.append(f"  <!-- {text} -->\n  <{tag}>TODO</{tag}>"
-                                           if varIsNameTODO.get()
+                                           if varExportType.get() == 1
                                            else f"  <{tag}>{text}</{tag}>")
 
             with open(filename, 'w', encoding='UTF8') as fin:
@@ -1039,10 +1040,7 @@ def loadSelectExport(window):
             if varCollisionOption.get() != 1:  # collision -> not overwrite
                 try:
                     with open(destination, 'r', encoding='UTF8') as _:
-                        messagebox.showerror("파일 충돌 발견됨",
-                                             f"Strings 폴더의 파일이 존재하여 작업을 중단하였습니다.\n" +
-                                             f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(savedList)}")
-                        return
+                        return 1, ("Strings", WORD_NEWLINE.join(savedList))
                 except FileNotFoundError:
                     pass
 
@@ -1052,13 +1050,117 @@ def loadSelectExport(window):
         if list_strings:
             savedList.append("Strings")
 
-        writeConfig(new_exportDir=varDirName.get(), new_exportFile=varFileName.get(),
-                    new_isNameTODO=varIsNameTODO.get(), new_collisionOption=varCollisionOption.get())
+        return 0, savedList
 
-        messagebox.showinfo("퍼일 저장 완료",
-                            "작업이 완료되었습니다.\n새로 작성되거나 변경된 파일의 폴더 리스트는 아래와 같습니다.\n{}".format("\n".join(savedList)))
+    def exportXlsx():
+        filename = varDirName.get() + '/' + varFileName.get()
 
-    Button(frame, text="추출하기", command=exportXml).grid(row=8, column=0)
+        alreadyDefinedDict = {}
+        if os.path.exists(filename):
+            if varCollisionOption.get() == 0:  # collision -> stop
+                return 1
+            if varCollisionOption.get() > 1:
+                with open(filename, "rb") as f:
+                    ioFile = io.BytesIO(f.read())
+                ws = openpyxl.load_workbook(ioFile, read_only=True).active
+                for cn, tn, pt, tt in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
+                    if cn or tn or pt or tt:
+                        try:
+                            alreadyDefinedDict[cn][tn] = (pt, tt)
+                        except KeyError:
+                            alreadyDefinedDict[cn] = {tn: (pt, tt)}
+
+        Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+
+        writingList = [(className, tag, text)
+                       for className, values in dict_class.items()
+                       for lastTag, tag, text in values
+                       if lastTag in includes]
+
+        writingList += [('Keyed', tag, text) for tag, text in dict_keyed.items()]
+
+        ws.cell(row=1, column=1).value = "상위폴더+변수"
+        ws.cell(row=1, column=2).value = "상위폴더"
+        ws.cell(row=1, column=3).value = "변수"
+        ws.cell(row=1, column=4).value = "내용물"
+        ws.cell(row=1, column=5).value = "번역"
+        ws.cell(row=1, column=6).value = "변경 전 원문"
+        ws.cell(row=1, column=7).value = "변경 전 번역문"
+        ws.cell(row=1, column=8).value = "변경된 원문 개수"
+        ws.cell(row=2, column=8).value = "=COUNTA(F:F)-1"
+
+        for i, (className, tag, text) in enumerate(writingList):
+            ws.cell(row=i + 2, column=1).value = className + '+' + tag
+            ws.cell(row=i + 2, column=2).value = className
+            ws.cell(row=i + 2, column=3).value = tag
+            ws.cell(row=i + 2, column=4).value = text
+            if alreadyDefinedDict:
+                try:
+                    if (already := alreadyDefinedDict[className][tag])[0] == text:
+                        ws.cell(row=i + 2, column=5).value = already[1]
+                    else:
+                        ws.cell(row=i + 2, column=6).value = already[0]
+                        ws.cell(row=i + 2, column=7).value = already[1]
+                    del alreadyDefinedDict[className][tag]
+                except KeyError:
+                    pass
+
+        for className, tagDict in alreadyDefinedDict.items():
+            for tag, (text, translation) in tagDict.items():
+                i += 1
+                ws.cell(row=i + 2, column=1).value = className + '+' + tag
+                ws.cell(row=i + 2, column=2).value = className
+                ws.cell(row=i + 2, column=3).value = tag
+                ws.cell(row=i + 2, column=6).value = text
+                ws.cell(row=i + 2, column=7).value = translation
+
+        try:
+            wb.save(filename)
+        except PermissionError:
+            return 2
+
+        # Strings
+        for departure in list_strings:
+            destination = varDirName.get() + departure.split('Languages\\English')[1]
+            if varCollisionOption.get() != 1:  # collision -> not overwrite
+                try:
+                    with open(destination, 'r', encoding='UTF8') as _:
+                        return 1
+                except FileNotFoundError:
+                    pass
+
+            Path('\\'.join(destination.split('\\')[:-1])).mkdir(parents=True, exist_ok=True)
+            shutil.copy(departure, destination)
+
+        return 0
+
+    def export():
+        if varExportType.get() != EXPORT_XLSX:
+            result = exportXml()
+            if result[0] == 0:
+                writeConfig(new_exportDir=varDirName.get(), new_exportFile=varFileName.get(),
+                            new_exportType=varExportType.get(), new_collisionOption=varCollisionOption.get())
+                messagebox.showinfo("퍼일 저장 완료",
+                                    "작업이 완료되었습니다.\n새로 작성되거나 변경된 파일의 폴더 리스트는 아래와 같습니다.\n{}".format("\n".join(result[1])))
+            elif result[0] == 1:
+                messagebox.showerror("파일 충돌 발견됨",
+                                     f"다음 폴더의 파일이 존재하여 작업을 중단하였습니다.\n{result[1][0]}\n\n" +
+                                     f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(result[1][1])}")
+        else:
+            result = exportXlsx()
+            if result == 0:
+                writeConfig(new_exportDir=varDirName.get(), new_exportFile=varFileName.get(),
+                            new_exportType=varExportType.get(), new_collisionOption=varCollisionOption.get())
+                messagebox.showinfo("퍼일 저장 완료", "작업이 완료되었습니다.")
+            elif result == 1:
+                messagebox.showerror("파일 충돌 발견됨", "작업 폴더의 파일이 존재하여 작업을 중단하였습니다.")
+            elif result == 2:
+                messagebox.showerror("파일 저장 오류", "엑셀 파일이 열려있어(혹은 쓰기 금지되어) 저장에 실패하였습니다.")
+            return
+
+    Button(frame, text="추출하기", command=export).grid(row=8, column=0)
 
 
 if __name__ == '__main__':
@@ -1086,10 +1188,10 @@ if __name__ == '__main__':
     Grid.columnconfigure(window, 0, weight=1)
 
     try:
-        gameLoc, modsLoc, defExcludes, defIncludes, exDir, exFile, isTODO, colOption = loadConfig()
+        gameLoc, modsLoc, defExcludes, defIncludes, exDir, exFile, exType, colOption = loadConfig()
     except FileNotFoundError:
         writeConfig()
-        gameLoc, modsLoc, defExcludes, defIncludes, exDir, exFile, isTODO, colOption = loadConfig()
+        gameLoc, modsLoc, defExcludes, defIncludes, exDir, exFile, exType, colOption = loadConfig()
     except ValueError:
         if messagebox.askyesno("사용자 설정 초기화", "config.dat 파일의 형식이 변경되어 초기화가 필요합니다.\n" +
                                              "초기화 진행 시 사용자가 변경한 설정이 유실됩니다.\n" +
@@ -1097,7 +1199,7 @@ if __name__ == '__main__':
             writeConfig()
         else:
             exit(0)
-        gameLoc, modsLoc, defExcludes, defIncludes, exDir, exFile, isTODO, colOption = loadConfig()
+        gameLoc, modsLoc, defExcludes, defIncludes, exDir, exFile, exType, colOption = loadConfig()
 
     loadInit(window)
 
