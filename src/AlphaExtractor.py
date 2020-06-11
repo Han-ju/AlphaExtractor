@@ -10,13 +10,14 @@ from tkinter import messagebox
 from tkinter import font
 import urllib.request
 import openpyxl
+import openpyxl.styles
 
 RIMWORLD_VERSION = '1.1'
 LANGUAGE = 'RimWaldo (림왈도)'  # 'Korean (한국어)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.0"
+EXTRACTOR_VERSION = "0.10.1"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -307,15 +308,23 @@ def loadSelectMod(window):
     modsNameDict = {}
     sep = ' | '
     for modPath in corePathList:
-        modsNameDict[f"   CORE   {sep}{modPath.split('/')[-1]}"] = modPath, f"{modPath.split('/')[-1]}"
+        modsNameDict[f"    CORE   {sep}{modPath.split('/')[-1]}"] = modPath, f"{modPath.split('/')[-1]}"
     for modPath in manualModPathList + workshopModPathList:
+        code = " ??????????"
+        try:
+            code = f"{int(modPath.split('/')[-1]):11d}"
+        except (FileNotFoundError, ValueError):
+            pass
+        try:
+            with open(modPath + '/About/PublishedFileId.txt') as fin:
+                code = f"{int(fin.read().replace(WORD_NEWLINE, '')):11d}"
+        except (FileNotFoundError, ValueError):
+            pass
         try:
             name = et.parse(modPath + '/About/About.xml').getroot().find('name').text
-            with open(modPath + '/About/PublishedFileId.txt') as fin:
-                code = fin.read().replace('\n', '')
-            modsNameDict[f"{int(code):10d}{sep}{name}"] = modPath, f"{name} - {code}"
         except (FileNotFoundError, ValueError, AttributeError):
-            modsNameDict[f"          {sep}{modPath.split('/')[-1]}"] = modPath, f"{modPath.split('/')[-1]}"
+            name = modPath.split('/')[-1]
+        modsNameDict[f"{code}{sep}{name}"] = modPath, f"{name} - {code}"
     modsNameDictKeys = list(modsNameDict.keys())
     modsNameDictKeys.sort(key=lambda x: x.split(sep)[1])
     modListBoxValue.set(modsNameDictKeys)
@@ -1209,20 +1218,28 @@ if __name__ == '__main__':
 
         writingList += [('Keyed', tag, text) for tag, text in dict_keyed.items()]
 
-        ws.cell(row=1, column=1).value = "Class+Node"
-        ws.cell(row=1, column=2).value = "Class"
-        ws.cell(row=1, column=3).value = "Node"
-        ws.cell(row=1, column=4).value = "EN"
-        ws.cell(row=1, column=5).value = "KO"
+        fill = openpyxl.styles.PatternFill(fill_type='solid', fgColor='ffffff')
+
+        ws.cell(row=1, column=1).value = "Class+Node [(Identifier (Key)]"
+        ws.cell(row=1, column=2).value = "Class [Not chosen]"
+        ws.cell(row=1, column=3).value = "Node [Not chosen]"
+        ws.cell(row=1, column=4).value = "EN [Source string]"
+        ws.cell(row=1, column=5).value = "KO [Translation]"
+        for j in range(1, 6):
+            ws.cell(row=1, column=j).fill = fill
 
         for i, (className, tag, text) in enumerate(writingList):
             ws.cell(row=i + 2, column=1).value = className + '+' + tag
             ws.cell(row=i + 2, column=2).value = className
             ws.cell(row=i + 2, column=3).value = tag
             ws.cell(row=i + 2, column=4).value = text
+            for j in range(1, 5):
+                ws.cell(row=i + 2, column=j).fill = fill
+
             if alreadyDefinedDict:
                 try:
                     ws.cell(row=i + 2, column=5).value = alreadyDefinedDict[className][tag]
+                    ws.cell(row=i + 2, column=5).fill = fill
                 except KeyError:
                     pass
 
