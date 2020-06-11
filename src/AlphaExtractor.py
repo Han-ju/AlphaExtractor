@@ -17,7 +17,7 @@ LANGUAGE = 'RimWaldo (림왈도)'  # 'Korean (한국어)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.1"
+EXTRACTOR_VERSION = "0.10.2"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -206,6 +206,30 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+def convertXLSX2XML(filename):
+    with open(filename, "rb") as f:
+        ioFile = io.BytesIO(f.read())
+    ws = openpyxl.load_workbook(ioFile, read_only=True).active
+    xmlDict = {}
+    for className, nodeName, _, translation in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
+        if translation:
+            if className not in xmlDict:
+                xmlDict[className] = {nodeName: translation}
+            else:
+                xmlDict[className][nodeName] = translation
+
+    for className, nodeDict in xmlDict.items():
+        saveDir = '/'.join(filename.split('/')[:-1]) + f'/Languages/{LANGUAGE}/DefInjected/{className}'
+        Path(saveDir).mkdir(parents=True, exist_ok=True)
+        with open(f"{saveDir}/{filename.split('/')[-1].split('.')[0]+'.xml'}", 'w', encoding='UTF8') as fout:
+            fout.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
+            for nodeName, translation in nodeDict.items():
+                fout.write(f'  <{nodeName}>{translation}</{nodeName}>\n')
+            fout.write("</LanguageData>")
+
+    messagebox.showinfo("작업 완료", "XML 변환이 완료되었습니다.")
+
+
 def loadSelectLocations(window):
     frame = Toplevel(window)
     frame.geometry("800x400+100+100")
@@ -324,7 +348,7 @@ def loadSelectMod(window):
             name = et.parse(modPath + '/About/About.xml').getroot().find('name').text
         except (FileNotFoundError, ValueError, AttributeError):
             name = modPath.split('/')[-1]
-        modsNameDict[f"{code}{sep}{name}"] = modPath, f"{name} - {code}"
+        modsNameDict[f"{code}{sep}{name}"] = modPath, f"{name} - {code.replace(' ', '')}"
     modsNameDictKeys = list(modsNameDict.keys())
     modsNameDictKeys.sort(key=lambda x: x.split(sep)[1])
     modListBoxValue.set(modsNameDictKeys)
@@ -1290,6 +1314,14 @@ if __name__ == '__main__':
 
     btn = Button(frame, text="5. 추출한 노드 출력하기", command=export)
     btn.grid(row=5, column=1, columnspan=2, padx=10, pady=5, sticky=N + S + E + W)
+
+    def convert():
+        if filename := filedialog.askopenfilename(initialdir='./'):
+            convertXLSX2XML(filename)
+
+
+    convertBtn = Button(frame, text="X. 번역한 엑셀 변환하기", command=convert)
+    convertBtn.grid(row=5, column=3, padx=10, pady=5, sticky=N + S + E + W)
 
     try:
         versionURL = "https://raw.githubusercontent.com/dlgks224/AlphaExtractor/master/CURRENT_VERSION"
