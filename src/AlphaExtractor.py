@@ -1,23 +1,23 @@
 import glob
-import os
 import io
+import os
 import shutil
+import sys
+import urllib.request
 import xml.etree.ElementTree as et
 from pathlib import Path
-from tkinter import *
-from tkinter import filedialog
-from tkinter import messagebox
-from tkinter import font
-import urllib.request
-import openpyxl
-import openpyxl.styles
+from tkinter import StringVar, IntVar, Grid, Entry, Label, Listbox, Toplevel, Text, Button, Radiobutton, Frame, Tk, \
+    filedialog, messagebox, font
+
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import PatternFill
 
 RIMWORLD_VERSION = '1.1'
 LANGUAGE = 'RimWaldo (림왈도)'  # 'Korean (한국어)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.2"
+EXTRACTOR_VERSION = "0.10.3"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -206,10 +206,38 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+def convertXML2XLSX(dirname):
+    if dirname or dirname == "":
+        messagebox.showinfo("미지원", "현재 지원하지 않는 기능입니다.")
+        return
+
+    with open(dirname, "rb") as f:
+        ioFile = io.BytesIO(f.read())
+    ws = load_workbook(ioFile, read_only=True).active
+    xmlDict = {}
+    for className, nodeName, _, translation in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
+        if translation:
+            if className not in xmlDict:
+                xmlDict[className] = {nodeName: translation}
+            else:
+                xmlDict[className][nodeName] = translation
+
+    for className, nodeDict in xmlDict.items():
+        saveDir = '/'.join(dirname.split('/')[:-1]) + f'/Languages/{LANGUAGE}/DefInjected/{className}'
+        Path(saveDir).mkdir(parents=True, exist_ok=True)
+        with open(f"{saveDir}/{dirname.split('/')[-1].split('.')[0] + '.xml'}", 'w', encoding='UTF8') as fout:
+            fout.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
+            for nodeName, translation in nodeDict.items():
+                fout.write(f'  <{nodeName}>{translation}</{nodeName}>\n')
+            fout.write("</LanguageData>")
+
+    messagebox.showinfo("작업 완료", "XML 변환이 완료되었습니다.")
+
+
 def convertXLSX2XML(filename):
     with open(filename, "rb") as f:
         ioFile = io.BytesIO(f.read())
-    ws = openpyxl.load_workbook(ioFile, read_only=True).active
+    ws = load_workbook(ioFile, read_only=True).active
     xmlDict = {}
     for className, nodeName, _, translation in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
         if translation:
@@ -221,7 +249,7 @@ def convertXLSX2XML(filename):
     for className, nodeDict in xmlDict.items():
         saveDir = '/'.join(filename.split('/')[:-1]) + f'/Languages/{LANGUAGE}/DefInjected/{className}'
         Path(saveDir).mkdir(parents=True, exist_ok=True)
-        with open(f"{saveDir}/{filename.split('/')[-1].split('.')[0]+'.xml'}", 'w', encoding='UTF8') as fout:
+        with open(f"{saveDir}/{filename.split('/')[-1].split('.')[0] + '.xml'}", 'w', encoding='UTF8') as fout:
             fout.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
             for nodeName, translation in nodeDict.items():
                 fout.write(f'  <{nodeName}>{translation}</{nodeName}>\n')
@@ -257,7 +285,7 @@ def loadSelectLocations(window):
 기본값: [C:/Program Files (x86)/Steam/steamapps/workshop/content/294100]"""
 
     label = Label(frame, text=labelText)
-    label.grid(row=0, column=0, columnspan=4, sticky=N + S + E + W)
+    label.grid(row=0, column=0, columnspan=4, sticky='NSWE')
 
     def onClick1():
         if text := filedialog.askdirectory():
@@ -268,21 +296,21 @@ def loadSelectLocations(window):
             Config.modDir.set(text)
 
     label1 = Label(frame, text="림월드 게임")
-    label1.grid(row=1, column=0, sticky=E + W, padx=5)
+    label1.grid(row=1, column=0, sticky='EW', padx=5)
     entry1 = Entry(frame, textvariable=Config.gameDir)
-    entry1.grid(row=1, column=1, columnspan=2, sticky=E + W)
+    entry1.grid(row=1, column=1, columnspan=2, sticky='EW')
     btn1 = Button(frame, text="폴더 선택", command=onClick1)
     btn1.grid(row=1, column=3, padx=5)
 
     label2 = Label(frame, text="창작마당")
-    label2.grid(row=2, column=0, sticky=E + W, padx=5)
+    label2.grid(row=2, column=0, sticky='EW', padx=5)
     entry2 = Entry(frame, textvariable=Config.modDir)
-    entry2.grid(row=2, column=1, columnspan=2, sticky=E + W)
+    entry2.grid(row=2, column=1, columnspan=2, sticky='EW')
     btn2 = Button(frame, text="폴더 선택", command=onClick2)
     btn2.grid(row=2, column=3, padx=5)
 
     btn = Button(frame, text="뒤로가기", command=onDestroy)
-    btn.grid(row=3, column=0, columnspan=4, sticky=N + S, padx=5, pady=5)
+    btn.grid(row=3, column=0, columnspan=4, sticky='NS', padx=5, pady=5)
 
 
 def loadSelectMod(window):
@@ -301,22 +329,22 @@ def loadSelectMod(window):
     Grid.columnconfigure(frame, 1, weight=1)
 
     textLabel1 = Label(frame, text="추출할 모드를 선택하세요")
-    textLabel1.grid(row=0, column=0, sticky=N + S + E + W, padx=5, pady=5)
+    textLabel1.grid(row=0, column=0, sticky='NSWE', padx=5, pady=5)
 
     modListBoxValue = StringVar()
     modListBox = Listbox(frame, selectborderwidth=3, listvariable=modListBoxValue,
                          font=font.Font(family="Courier", size=10))
-    modListBox.grid(row=1, column=0, sticky=N + S + E + W)
+    modListBox.grid(row=1, column=0, sticky='NSWE')
 
     searchMod = EntryHint(frame, "[모드 검색]", justify='center')
-    searchMod.grid(row=2, column=0, sticky=E + W, padx=5, pady=5)
+    searchMod.grid(row=2, column=0, sticky='EW', padx=5, pady=5)
 
     textLabel2 = Label(frame, text="추출할 버전 및 폴더들을 선택하세요")
-    textLabel2.grid(row=0, column=1, sticky=N + S + E + W, padx=5, pady=5)
+    textLabel2.grid(row=0, column=1, sticky='NSWE', padx=5, pady=5)
 
     dirList = StringVar()
     dirListBox = Listbox(frame, selectmode='multiple', selectborderwidth=10, listvariable=dirList)
-    dirListBox.grid(row=1, column=1, sticky=N + S + E + W)
+    dirListBox.grid(row=1, column=1, sticky='NSWE')
 
     extractButton = Button(frame, text="선택한 폴더의 노드 추출")
     extractButton.grid(row=2, column=1)
@@ -426,8 +454,8 @@ def loadSelectMod(window):
             messagebox.showerror("폴더를 선택하세요", "추출할 폴더를 하나 이상 선택하세요.")
             return
         Config.modName = modName
-        Config.exportDirName.set(modName)
-        Config.exportFileName.set(modName)
+        Config.exportDirName.set("".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)))
+        Config.exportFileName.set("".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)))
         updateText()
         window.deiconify()
         frame.destroy()
@@ -443,6 +471,11 @@ def loadSelectMod(window):
                         return
 
                     for className, lastTag, tag, text in extracts:
+                        if className == 'ScenarioDef':
+                            if tag != lastTag and (tags := tag.split('.'))[1] != 'scenario':
+                                tags.insert(1, 'scenario')
+                                if className in dict_class and (tags := '.'.join(tags)) not in dict_class[className]:
+                                    dict_class[className] = {tags: (lastTag, text)}
                         if className in dict_class:
                             dict_class[className][tag] = (lastTag, text)
                         else:
@@ -477,6 +510,11 @@ def loadSelectMod(window):
                             className, lastTag, tag, text = extract
                         else:
                             continue
+                        if className == 'ScenarioDef':
+                            if tag != lastTag and (tags := tag.split('.'))[1] != 'scenario':
+                                tags.insert(1, 'scenario')
+                                if className in dict_class and (tags := '.'.join(tags)) not in dict_class[className]:
+                                    dict_class[className] = {tags: (lastTag, text)}
                         if className in dict_class:
                             dict_class[className][tag] = (lastTag, text)
                         else:
@@ -724,26 +762,26 @@ def loadSelectTags(window):
         text.focus_set()
         Grid.rowconfigure(dialog, 0, weight=1)
         Grid.columnconfigure(dialog, 0, weight=1)
-        text.grid(row=0, column=0, sticky=N + S + E + W)
+        text.grid(row=0, column=0, sticky='NSWE')
 
-    Label(frame, text="추출 제외 태그").grid(row=0, column=0, sticky=N + S + E + W)
+    Label(frame, text="추출 제외 태그").grid(row=0, column=0, sticky='NSWE')
     excludeVar = StringVar(value=Config.excludes)
     excludeList = Listbox(frame, listvariable=excludeVar)
-    excludeList.grid(row=1, column=0, sticky=N + S + E + W)
+    excludeList.grid(row=1, column=0, sticky='NSWE')
     excludeList.bind("<w>", lambda x: moveTag(excludeList.get(excludeList.curselection()[0]), 1))
     excludeList.bind("<e>", lambda x: moveTag(excludeList.get(excludeList.curselection()[0]), 2))
 
-    Label(frame, text="미분류 태그\n(추출 제외)").grid(row=0, column=1, sticky=N + S + E + W)
+    Label(frame, text="미분류 태그\n(추출 제외)").grid(row=0, column=1, sticky='NSWE')
     defaultVar = StringVar(value=Config.defaults)
     defaultList = Listbox(frame, listvariable=defaultVar)
-    defaultList.grid(row=1, column=1, sticky=N + S + E + W)
+    defaultList.grid(row=1, column=1, sticky='NSWE')
     defaultList.bind("<q>", lambda x: moveTag(defaultList.get(defaultList.curselection()[0]), 0))
     defaultList.bind("<e>", lambda x: moveTag(defaultList.get(defaultList.curselection()[0]), 2))
 
-    Label(frame, text="추출 대상 태그").grid(row=0, column=2, sticky=N + S + E + W)
+    Label(frame, text="추출 대상 태그").grid(row=0, column=2, sticky='NSWE')
     includeVar = StringVar(value=Config.includes)
     includeList = Listbox(frame, listvariable=includeVar)
-    includeList.grid(row=1, column=2, sticky=N + S + E + W)
+    includeList.grid(row=1, column=2, sticky='NSWE')
     includeList.bind("<q>", lambda x: moveTag(includeList.get(includeList.curselection()[0]), 0))
     includeList.bind("<w>", lambda x: moveTag(includeList.get(includeList.curselection()[0]), 1))
 
@@ -754,7 +792,7 @@ def loadSelectTags(window):
             toMove = Config.defaults.pop(Config.defaults.index(tag))
             if destination == 1:
                 return
-            if defaultList.get(END) == toMove:
+            if defaultList.get('end') == toMove:
                 defaultList.activate(defaultList.size() - 2)
                 defaultList.selection_set(defaultList.size() - 2)
         except ValueError:
@@ -762,7 +800,7 @@ def loadSelectTags(window):
                 toMove = Config.excludes.pop(Config.excludes.index(tag))
                 if destination == 0:
                     return
-                if excludeList.get(END) == toMove:
+                if excludeList.get('end') == toMove:
                     excludeList.activate(excludeList.size() - 2)
                     excludeList.selection_set(excludeList.size() - 2)
             except ValueError:
@@ -770,7 +808,7 @@ def loadSelectTags(window):
                     toMove = Config.includes.pop(Config.includes.index(tag))
                     if destination == 2:
                         return
-                    if includeList.get(END) == toMove:
+                    if includeList.get('end') == toMove:
                         includeList.activate(includeList.size() - 2)
                         includeList.selection_set(includeList.size() - 2)
                 except ValueError:
@@ -783,17 +821,17 @@ def loadSelectTags(window):
         includeVar.set(sorted(Config.includes))
 
         if destination == 0:
-            for i, v in enumerate(excludeList.get(0, END)):
+            for i, v in enumerate(excludeList.get(0, 'end')):
                 if v == toMove:
                     excludeList.see(i)
                     break
         elif destination == 0:
-            for i, v in enumerate(defaultList.get(0, END)):
+            for i, v in enumerate(defaultList.get(0, 'end')):
                 if v == toMove:
                     defaultList.see(i)
                     break
         elif destination == 0:
-            for i, v in enumerate(includeList.get(0, END)):
+            for i, v in enumerate(includeList.get(0, 'end')):
                 if v == toMove:
                     includeList.see(i)
                     break
@@ -807,9 +845,9 @@ def loadSelectTags(window):
     Label(frame, text="[E]를 입력해 추출 추가").grid(row=2, column=2)
 
     searchTag = EntryHint(frame, "[태그 필터]")
-    searchTag.grid(row=3, column=0, sticky=E + W)
+    searchTag.grid(row=3, column=0, sticky='EW')
     searchText = EntryHint(frame, "[원본 텍스트 필터]")
-    searchText.grid(row=3, column=1, columnspan=2, sticky=E + W)
+    searchText.grid(row=3, column=1, columnspan=2, sticky='EW')
 
     dictTextTag = {}
     for tag, texts in Config.dict_tags_text.items():
@@ -862,7 +900,7 @@ def loadSelectTags(window):
     searchTag.bind("<KeyRelease>", onSearch)
     searchText.bind("<KeyRelease>", onSearch)
 
-    Button(frame, text="뒤로가기", command=onDestroy).grid(row=4, column=1, sticky=N + S + E + W, padx=2, pady=2)
+    Button(frame, text="뒤로가기", command=onDestroy).grid(row=4, column=1, sticky='NSWE', padx=2, pady=2)
 
     def loadTagList():
         if not messagebox.askyesno("태그 분류 불러오기",
@@ -942,10 +980,10 @@ def loadSelectExport(window):
         Grid.columnconfigure(frame, i, weight=1)
 
     Label(frame, text="결과를 저장할 폴더의 이름을 지정하세요").grid(row=0, column=0)
-    Entry(frame, textvariable=Config.exportDirName, justify='center').grid(row=1, column=0, sticky=E + W)
+    Entry(frame, textvariable=Config.exportDirName, justify='center').grid(row=1, column=0, sticky='EW')
 
     Label(frame, text="결과 파일의 이름을 지정하세요 (.xml / .xlsx와 같은 확장자를 붙일 필요는 없습니다.)").grid(row=2, column=0)
-    Entry(frame, textvariable=Config.exportFileName, justify='center').grid(row=3, column=0, sticky=E + W)
+    Entry(frame, textvariable=Config.exportFileName, justify='center').grid(row=3, column=0, sticky='EW')
 
     Label(frame, text="추출한 노드의 출력 방식 지정").grid(row=4, column=0)
     row5Frame = Frame(frame)
@@ -1023,7 +1061,7 @@ if __name__ == '__main__':
     Config = Configures()
 
     frame = Frame(window)
-    frame.grid(row=0, column=0, sticky=N + S + E + W)
+    frame.grid(row=0, column=0, sticky='NSWE')
 
     for i in range(6):
         Grid.rowconfigure(frame, i, weight=1)
@@ -1033,7 +1071,7 @@ if __name__ == '__main__':
     mainTextVar = StringVar()
     updateText()
     mainLabel = Label(frame, textvariable=mainTextVar)
-    mainLabel.grid(row=0, column=0, rowspan=4, columnspan=4, sticky=N + S + E + W)
+    mainLabel.grid(row=0, column=0, rowspan=4, columnspan=4, sticky='NSWE')
 
 
     def onClick(i):
@@ -1052,16 +1090,19 @@ if __name__ == '__main__':
 
 
     btn1 = Button(frame, text="1. 림월드 위치 지정", command=lambda: onClick(FRAME_LOCATION_SELECT))
-    btn1.grid(row=4, column=0, sticky=N + S + E + W, padx=10, pady=5)
+    btn1.grid(row=4, column=0, sticky='NSWE', padx=10, pady=5)
     btn2 = Button(frame, text="2. 추출 모드 선택", command=lambda: onClick(FRAME_MOD_SELECT))
-    btn2.grid(row=4, column=1, sticky=N + S + E + W, padx=10, pady=5)
+    btn2.grid(row=4, column=1, sticky='NSWE', padx=10, pady=5)
     btn3 = Button(frame, text="3. 출력 노드 선택", command=lambda: onClick(FRAME_NODE_CLASSIFICATION))
-    btn3.grid(row=4, column=2, sticky=N + S + E + W, padx=10, pady=5)
+    btn3.grid(row=4, column=2, sticky='NSWE', padx=10, pady=5)
     btn4 = Button(frame, text="4. 출력 옵션 지정", command=lambda: onClick(FRAME_EXPORT_OPTION))
-    btn4.grid(row=4, column=3, sticky=N + S + E + W, padx=10, pady=5)
+    btn4.grid(row=4, column=3, sticky='NSWE', padx=10, pady=5)
 
 
     def exportXml():
+        for ch in "\\/:*?\"<>|":
+            if ch in Config.exportFileName.get():
+                return [3]
         savedList = []
         for className, tag_dict in dict_class.items():  # Defs / Patches
             isThereNoIncludes = True
@@ -1223,7 +1264,7 @@ if __name__ == '__main__':
             if Config.collisionOption.get() > 1:
                 with open(filename, "rb") as f:
                     ioFile = io.BytesIO(f.read())
-                ws = openpyxl.load_workbook(ioFile, read_only=True).active
+                ws = load_workbook(ioFile, read_only=True).active
                 for row in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
                     if any(row):
                         try:
@@ -1231,8 +1272,12 @@ if __name__ == '__main__':
                         except KeyError:
                             alreadyDefinedDict[row[0]] = {row[1]: row[3]}
 
-        Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
-        wb = openpyxl.Workbook()
+        try:
+            Path('/'.join(filename.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
+        except NotADirectoryError:
+            return 4
+
+        wb = Workbook()
         ws = wb.active
 
         writingList = [(className, tag, text)
@@ -1242,7 +1287,7 @@ if __name__ == '__main__':
 
         writingList += [('Keyed', tag, text) for tag, text in dict_keyed.items()]
 
-        fill = openpyxl.styles.PatternFill(fill_type='solid', fgColor='ffffff')
+        fill = PatternFill(fill_type='solid', fgColor='ffffff')
 
         ws.cell(row=1, column=1).value = "Class+Node [(Identifier (Key)]"
         ws.cell(row=1, column=2).value = "Class [Not chosen]"
@@ -1257,7 +1302,7 @@ if __name__ == '__main__':
             ws.cell(row=i + 2, column=2).value = className
             ws.cell(row=i + 2, column=3).value = tag
             ws.cell(row=i + 2, column=4).value = text
-            for j in range(1, 5):
+            for j in range(1, 6):
                 ws.cell(row=i + 2, column=j).fill = fill
 
             if alreadyDefinedDict:
@@ -1271,6 +1316,8 @@ if __name__ == '__main__':
             wb.save(filename)
         except PermissionError:
             return 2
+        except OSError:
+            return 3
 
         # Strings
         for departure in Config.list_strings:
@@ -1301,6 +1348,8 @@ if __name__ == '__main__':
                 messagebox.showerror("파일 충돌 발견됨",
                                      f"다음 폴더의 파일이 존재하여 작업을 중단하였습니다.\n{result[1][0]}\n\n" +
                                      f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(result[1][1])}")
+            elif result[0] == 3:
+                messagebox.showerror("파일 저장 오류", "출력 파일의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
         else:
             result = exportXlsx()
             if result == 0:
@@ -1309,19 +1358,33 @@ if __name__ == '__main__':
                 messagebox.showerror("파일 충돌 발견됨", "작업 폴더의 파일이 존재하여 작업을 중단하였습니다.")
             elif result == 2:
                 messagebox.showerror("파일 저장 오류", "엑셀 파일이 열려있어(혹은 쓰기 금지되어) 저장에 실패하였습니다.")
+            elif result == 3:
+                messagebox.showerror("파일 저장 오류", "출력 파일의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
+            elif result == 4:
+                messagebox.showerror("파일 저장 오류", "출력 폴더의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
             return
 
 
     btn = Button(frame, text="5. 추출한 노드 출력하기", command=export)
-    btn.grid(row=5, column=1, columnspan=2, padx=10, pady=5, sticky=N + S + E + W)
+    btn.grid(row=5, column=1, columnspan=2, padx=10, pady=5, sticky='NSWE')
 
-    def convert():
+
+    def convert_xlsx_2_xml():
         if filename := filedialog.askopenfilename(initialdir='./'):
             convertXLSX2XML(filename)
 
 
-    convertBtn = Button(frame, text="X. 번역한 엑셀 변환하기", command=convert)
-    convertBtn.grid(row=5, column=3, padx=10, pady=5, sticky=N + S + E + W)
+    convert_xlsx_2_xml_Btn = Button(frame, text="(XLSX -> XML)", command=convert_xlsx_2_xml)
+    convert_xlsx_2_xml_Btn.grid(row=5, column=3, padx=10, pady=5, sticky='NSWE')
+
+    def convert_xml_2_xlsx():
+        if dirname := filedialog.askdirectory(initialdir='./'):
+            convertXML2XLSX(dirname)
+
+
+    convert_xml_2_xlsx_Btn = Button(frame, text="(XML -> XLSX)", command=convert_xml_2_xlsx)
+    convert_xml_2_xlsx_Btn.grid(row=5, column=0, padx=10, pady=5, sticky='NSWE')
+    convert_xml_2_xlsx_Btn['state'] = 'disabled'
 
     try:
         versionURL = "https://raw.githubusercontent.com/dlgks224/AlphaExtractor/master/CURRENT_VERSION"
