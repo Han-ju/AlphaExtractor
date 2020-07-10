@@ -13,11 +13,11 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill
 
 RIMWORLD_VERSION = '1.1'
-LANGUAGE = 'RimWaldo (림왈도)'  # 'Korean (한국어)'
+LANGUAGE = 'Korean (한국어)' # 'RimWaldo (림왈도)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.3"
+EXTRACTOR_VERSION = "0.10.4"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -56,6 +56,7 @@ class Configures:
         # Volatile Configs
         self.extractPathList = []
         self.modName = ""
+        self.pakageID = ""
         self.excludes = []
         self.defaults = []
         self.includes = []
@@ -246,14 +247,21 @@ def convertXLSX2XML(filename):
             else:
                 xmlDict[className][nodeName] = translation
 
+    modName = ws.cell(row=5, column=6).value
+    modName = "".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)) if modName else filename.split('/')[-1].split('.')[0]
+
     for className, nodeDict in xmlDict.items():
-        saveDir = '/'.join(filename.split('/')[:-1]) + f'/Languages/{LANGUAGE}/DefInjected/{className}'
+        saveDir = f'{modName}/Languages/{LANGUAGE}/DefInjected/{className}'
         Path(saveDir).mkdir(parents=True, exist_ok=True)
-        with open(f"{saveDir}/{filename.split('/')[-1].split('.')[0] + '.xml'}", 'w', encoding='UTF8') as fout:
+        with open(f"{saveDir}/{modName}.xml", 'w', encoding='UTF8') as fout:
             fout.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
             for nodeName, translation in nodeDict.items():
                 fout.write(f'  <{nodeName}>{translation}</{nodeName}>\n')
             fout.write("</LanguageData>")
+
+    if pakageID := ws.cell(row=3, column=6).value:
+        with open(f"{modName}/AddThisLoadFolders.xml", 'w', encoding='UTF8') as fout:
+            fout.write(f"""<li IfModActive="{pakageID}">{modName}</li>""")
 
     messagebox.showinfo("작업 완료", "XML 변환이 완료되었습니다.")
 
@@ -362,21 +370,23 @@ def loadSelectMod(window):
     for modPath in corePathList:
         modsNameDict[f"    CORE   {sep}{modPath.split('/')[-1]}"] = modPath, f"{modPath.split('/')[-1]}"
     for modPath in manualModPathList + workshopModPathList:
-        code = " ??????????"
-        try:
-            code = f"{int(modPath.split('/')[-1]):11d}"
-        except (FileNotFoundError, ValueError):
-            pass
         try:
             with open(modPath + '/About/PublishedFileId.txt') as fin:
                 code = f"{int(fin.read().replace(WORD_NEWLINE, '')):11d}"
         except (FileNotFoundError, ValueError):
-            pass
+            try:
+                code = f"{int(modPath.split('/')[-1]):11d}"
+            except (FileNotFoundError, ValueError):
+                code = " ??????????"
+        try:
+            pakageID = et.parse(modPath + '/About/About.xml').getroot().find('packageId').text
+        except (FileNotFoundError, ValueError, AttributeError):
+            pakageID = "NULL"
         try:
             name = et.parse(modPath + '/About/About.xml').getroot().find('name').text
         except (FileNotFoundError, ValueError, AttributeError):
             name = modPath.split('/')[-1]
-        modsNameDict[f"{code}{sep}{name}"] = modPath, f"{name} - {code.replace(' ', '')}"
+        modsNameDict[f"{code}{sep}{name}"] = modPath, f"{name} - {code.replace(' ', '')}", pakageID
     modsNameDictKeys = list(modsNameDict.keys())
     modsNameDictKeys.sort(key=lambda x: x.split(sep)[1])
     modListBoxValue.set(modsNameDictKeys)
@@ -385,11 +395,12 @@ def loadSelectMod(window):
     extractableDirNameList = []
 
     modName = ""
+    pakageID = ""
 
     def onModSelect(evt):
         try:
-            nonlocal modName
-            modPath, modName = modsNameDict[evt.widget.get(int(evt.widget.curselection()[0]))]
+            nonlocal modName, pakageID
+            modPath, modName, pakageID = modsNameDict[evt.widget.get(int(evt.widget.curselection()[0]))]
         except IndexError:
             return
 
@@ -454,6 +465,7 @@ def loadSelectMod(window):
             messagebox.showerror("폴더를 선택하세요", "추출할 폴더를 하나 이상 선택하세요.")
             return
         Config.modName = modName
+        Config.pakageID = pakageID
         Config.exportDirName.set("".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)))
         Config.exportFileName.set("".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)))
         updateText()
@@ -889,9 +901,9 @@ def loadSelectTags(window):
             Config.includeHide = [tag for tag in Config.includes if tag not in includeIntersect]
             Config.includes = includeIntersect
         else:
-            excludeHide = []
-            defaultHide = []
-            includeHide = []
+            Config.excludeHide = []
+            Config.defaultHide = []
+            Config.includeHide = []
 
         excludeVar.set(sorted(Config.excludes))
         defaultVar.set(sorted(Config.defaults))
@@ -1296,6 +1308,17 @@ if __name__ == '__main__':
         ws.cell(row=1, column=5).value = "KO [Translation]"
         for j in range(1, 6):
             ws.cell(row=1, column=j).fill = fill
+
+        ws.cell(row=1, column=6).value = "Configs [Not chosen]"
+        ws.cell(row=1, column=6).fill = PatternFill(fill_type='solid', fgColor='a6a6a6')
+        ws.cell(row=2, column=6).value = "pakageID"
+        ws.cell(row=2, column=6).fill = PatternFill(fill_type='solid', fgColor='f79646')
+        ws.cell(row=3, column=6).value = Config.pakageID
+        ws.cell(row=3, column=6).fill = PatternFill(fill_type='solid', fgColor='ffff00')
+        ws.cell(row=4, column=6).value = "modName (folderName)"
+        ws.cell(row=4, column=6).fill = PatternFill(fill_type='solid', fgColor='f79646')
+        ws.cell(row=5, column=6).value = Config.modName
+        ws.cell(row=5, column=6).fill = PatternFill(fill_type='solid', fgColor='ffff00')
 
         for i, (className, tag, text) in enumerate(writingList):
             ws.cell(row=i + 2, column=1).value = className + '+' + tag
