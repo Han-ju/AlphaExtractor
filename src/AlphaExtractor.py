@@ -17,7 +17,7 @@ LANGUAGE = 'Korean (한국어)' # 'RimWaldo (림왈도)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.4"
+EXTRACTOR_VERSION = "0.10.5"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -241,7 +241,8 @@ def convertXLSX2XML(filename):
     ws = load_workbook(ioFile, read_only=True).active
     xmlDict = {}
     for className, nodeName, _, translation in ws.iter_rows(min_row=2, min_col=2, max_col=5, values_only=True):
-        if translation:
+        # _ == original text
+        if className and nodeName and translation:
             if className not in xmlDict:
                 xmlDict[className] = {nodeName: translation}
             else:
@@ -251,7 +252,11 @@ def convertXLSX2XML(filename):
     modName = "".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)) if modName else filename.split('/')[-1].split('.')[0]
 
     for className, nodeDict in xmlDict.items():
-        saveDir = f'{modName}/Languages/{LANGUAGE}/DefInjected/{className}'
+
+        if className == 'Keyed':
+            saveDir = f'{modName}/Languages/{LANGUAGE}/Keyed'
+        else:
+            saveDir = f'{modName}/Languages/{LANGUAGE}/DefInjected/{className}'
         Path(saveDir).mkdir(parents=True, exist_ok=True)
         with open(f"{saveDir}/{modName}.xml", 'w', encoding='UTF8') as fout:
             fout.write("""<?xml version="1.0" encoding="utf-8"?>\n<LanguageData>\n""")
@@ -368,7 +373,11 @@ def loadSelectMod(window):
     modsNameDict = {}
     sep = ' | '
     for modPath in corePathList:
-        modsNameDict[f"    CORE   {sep}{modPath.split('/')[-1]}"] = modPath, f"{modPath.split('/')[-1]}"
+        try:
+            pakageID = et.parse(modPath + '/About/About.xml').getroot().find('packageId').text
+        except (FileNotFoundError, ValueError, AttributeError):
+            pakageID = "NULL"
+        modsNameDict[f"    CORE   {sep}{modPath.split('/')[-1]}"] = modPath, f"{modPath.split('/')[-1]}", pakageID
     for modPath in manualModPathList + workshopModPathList:
         try:
             with open(modPath + '/About/PublishedFileId.txt') as fin:
@@ -412,7 +421,7 @@ def loadSelectMod(window):
             for eachVersionNode in modVersionNodeList:
                 for eachLoad in list(eachVersionNode):
                     if not eachLoad.text:
-                        continue
+                        eachLoad.text = ""
                     path = os.path.join(modPath, eachLoad.text) if eachLoad.text != '/' else modPath
                     try:
                         attr = eachLoad.attrib['IfModActive']
@@ -542,7 +551,7 @@ def loadSelectMod(window):
         Config.defaults = sorted(Config.dict_tags_text.keys())
         Config.includes = []
 
-        while True:
+        while Config.defaults:
             candidate = Config.defaults.pop(0)
             try:
                 int(candidate)
