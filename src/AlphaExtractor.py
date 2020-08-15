@@ -12,12 +12,12 @@ from tkinter import StringVar, IntVar, Grid, Entry, Label, Listbox, Toplevel, Te
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill
 
-RIMWORLD_VERSION = '1.1'
+RIMWORLD_VERSION = '1.2'
 LANGUAGE = 'Korean (한국어)' # 'RimWaldo (림왈도)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.5"
+EXTRACTOR_VERSION = "0.10.6"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
