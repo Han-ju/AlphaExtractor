@@ -7,17 +7,17 @@ import urllib.request
 import xml.etree.ElementTree as et
 from pathlib import Path
 from tkinter import StringVar, IntVar, Grid, Entry, Label, Listbox, Toplevel, Text, Button, Radiobutton, Frame, Tk, \
-    filedialog, messagebox, font
+    filedialog, messagebox, font, Checkbutton
 
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill
 
 RIMWORLD_VERSION = '1.2'
-LANGUAGE = 'Korean (한국어)' # 'RimWaldo (림왈도)'
+LANGUAGE = 'Korean (한국어)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.6"
+EXTRACTOR_VERSION = "0.10.7"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -67,6 +67,8 @@ class Configures:
         self.exportFileName = StringVar()
         self.dict_tags_text = {}
         self.list_strings = []
+        self.rememberTagSort = IntVar()
+        self.rememberTagSort.set(1)
 
     def write(self, isReset=False, fileName='config.dat'):
         if isReset:
@@ -207,6 +209,26 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+def report_callback_exception(_, exc, val, tb):
+    import traceback
+    messagebox.showerror(exc, f"{val}\n\n자세한 내용은 error_report.txt를 참조하십시오.")
+    with open("error_report.txt", 'a') as fout:
+        print("Exception in Tkinter callback", file=fout)
+        sys.last_type = exc
+        sys.last_value = val
+        sys.last_traceback = tb
+        traceback.print_exception(exc, val, tb, file=fout)
+
+
+Tk.report_callback_exception = report_callback_exception
+
+
+def report(text):
+    with open("error_report.txt", 'a') as fout:
+        fout.write(text)
+        fout.write('\n')
+
+
 def convertXML2XLSX(dirname):
     if dirname or dirname == "":
         messagebox.showinfo("미지원", "현재 지원하지 않는 기능입니다.")
@@ -249,7 +271,8 @@ def convertXLSX2XML(filename):
                 xmlDict[className][nodeName] = translation
 
     modName = ws.cell(row=5, column=6).value
-    modName = "".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)) if modName else filename.split('/')[-1].split('.')[0]
+    modName = "".join(filter(lambda ch: ch not in "\\/:*?\"<>|", modName)) if modName else \
+        filename.split('/')[-1].split('.')[0]
 
     for className, nodeDict in xmlDict.items():
 
@@ -321,9 +344,6 @@ def loadSelectLocations(window):
     entry2.grid(row=2, column=1, columnspan=2, sticky='EW')
     btn2 = Button(frame, text="폴더 선택", command=onClick2)
     btn2.grid(row=2, column=3, padx=5)
-
-    btn = Button(frame, text="뒤로가기", command=onDestroy)
-    btn.grid(row=3, column=0, columnspan=4, sticky='NS', padx=5, pady=5)
 
 
 def loadSelectMod(window):
@@ -492,11 +512,10 @@ def loadSelectMod(window):
                         return
 
                     for className, lastTag, tag, text in extracts:
-                        if className == 'ScenarioDef':
-                            if tag != lastTag and (tags := tag.split('.'))[1] != 'scenario':
-                                tags.insert(1, 'scenario')
-                                if className in dict_class and (tags := '.'.join(tags)) not in dict_class[className]:
-                                    dict_class[className] = {tags: (lastTag, text)}
+                        if className == 'ScenarioDef' and tag != lastTag and 'scenario' not in tag:
+                            tag = tag.split('.')
+                            tag.insert(1, 'scenario')
+                            tag = '.'.join(tag)
                         if className in dict_class:
                             dict_class[className][tag] = (lastTag, text)
                         else:
@@ -531,11 +550,10 @@ def loadSelectMod(window):
                             className, lastTag, tag, text = extract
                         else:
                             continue
-                        if className == 'ScenarioDef':
-                            if tag != lastTag and (tags := tag.split('.'))[1] != 'scenario':
-                                tags.insert(1, 'scenario')
-                                if className in dict_class and (tags := '.'.join(tags)) not in dict_class[className]:
-                                    dict_class[className] = {tags: (lastTag, text)}
+                        if className == 'ScenarioDef' and tag != lastTag and 'scenario' not in tag:
+                            tag = tag.split('.')
+                            tag.insert(1, 'scenario')
+                            tag = '.'.join(tag)
                         if className in dict_class:
                             dict_class[className][tag] = (lastTag, text)
                         else:
@@ -694,20 +712,20 @@ def analysisOperation(node, modDepend):
             xpath = node.find('xpath').text
             className, tagList = xpathAnalysis(xpath)
             if not className:
-                print(f'다음 xpath는 {tagList}번 사유로 파싱할 수 없음: {xpath}')
+                report(f'다음 xpath는 {tagList}번 사유로 파싱할 수 없음: {xpath}')
                 return
             yield from parse_recursive(node.find('value'), className, '.'.join(tagList[:-1]), lastTag=tagList[-2],
                                        unKnownLiNo=True)
         except Exception as e:
-            print(e)
+            report(e)
             return
     elif operation in ['PatchOperationAdd', 'PatchOperationReplace']:
         if operation == 'PatchOperationReplace' and modDepend:
             try:
                 xpath = node.find('xpath').text
-                print('모드 의존성과 함께 노드를 변경하는 패치는 추출하지 않음, xpath:', xpath)
+                report(f'모드 의존성과 함께 노드를 변경하는 패치는 추출하지 않음, xpath: {xpath}')
             except AttributeError:
-                print('모드 의존성과 함께 노드를 변경하는 패치는 추출하지 않음, xpath 존재하지 않음')
+                report('모드 의존성과 함께 노드를 변경하는 패치는 추출하지 않음, xpath 존재하지 않음')
                 return
         try:
             xpath = node.find('xpath').text
@@ -715,18 +733,18 @@ def analysisOperation(node, modDepend):
                 yield from extractDefs(node.find('value'))
             className, tagList = xpathAnalysis(xpath)
             if not className:
-                print(f'다음 xpath는 {tagList}번 사유로 파싱할 수 없음: {xpath}')
+                report(f'다음 xpath는 {tagList}번 사유로 파싱할 수 없음: {xpath}')
                 return
             yield from parse_recursive(node.find('value'), className, '.'.join(tagList), lastTag=tagList[-1])
         except Exception as e:
-            print(e)
+            report(e)
             return
     elif operation == 'PatchOperationRemove':
         try:
             xpath = node.find('xpath').text
-            print('노드를 제거하는 패치는 추출하지 않음, xpath:', xpath)
+            report(f'노드를 제거하는 패치는 추출하지 않음, xpath: {xpath}')
         except AttributeError:
-            print('노드를 제거하는 패치는 추출하지 않음, xpath 존재하지 않음')
+            report('노드를 제거하는 패치는 추출하지 않음, xpath 존재하지 않음')
             return
     else:
         return
@@ -746,6 +764,13 @@ def loadSelectTags(window):
     frame.iconbitmap(resource_path('icon.ico'))
 
     def onDestroy():
+        if Config.rememberTagSort.get():
+            Config.definedIncludes = list(set(Config.definedIncludes) | set(Config.includes)
+                                          - set(Config.defaults) - set(Config.excludes))
+            Config.definedExcludes = list(set(Config.definedExcludes) | set(Config.excludes)
+                                          - set(Config.defaults) - set(Config.includes))
+            Config.write()
+
         window.deiconify()
         frame.destroy()
 
@@ -789,24 +814,29 @@ def loadSelectTags(window):
     excludeVar = StringVar(value=Config.excludes)
     excludeList = Listbox(frame, listvariable=excludeVar)
     excludeList.grid(row=1, column=0, sticky='NSWE')
-    excludeList.bind("<w>", lambda x: moveTag(excludeList.get(excludeList.curselection()[0]), 1))
-    excludeList.bind("<e>", lambda x: moveTag(excludeList.get(excludeList.curselection()[0]), 2))
+    excludeList.bind("<w>", lambda x: moveTag(excludeList, 1))
+    excludeList.bind("<e>", lambda x: moveTag(excludeList, 2))
 
     Label(frame, text="미분류 태그\n(추출 제외)").grid(row=0, column=1, sticky='NSWE')
     defaultVar = StringVar(value=Config.defaults)
     defaultList = Listbox(frame, listvariable=defaultVar)
     defaultList.grid(row=1, column=1, sticky='NSWE')
-    defaultList.bind("<q>", lambda x: moveTag(defaultList.get(defaultList.curselection()[0]), 0))
-    defaultList.bind("<e>", lambda x: moveTag(defaultList.get(defaultList.curselection()[0]), 2))
+    defaultList.bind("<q>", lambda x: moveTag(defaultList, 0))
+    defaultList.bind("<e>", lambda x: moveTag(defaultList, 2))
 
     Label(frame, text="추출 대상 태그").grid(row=0, column=2, sticky='NSWE')
     includeVar = StringVar(value=Config.includes)
     includeList = Listbox(frame, listvariable=includeVar)
     includeList.grid(row=1, column=2, sticky='NSWE')
-    includeList.bind("<q>", lambda x: moveTag(includeList.get(includeList.curselection()[0]), 0))
-    includeList.bind("<w>", lambda x: moveTag(includeList.get(includeList.curselection()[0]), 1))
+    includeList.bind("<q>", lambda x: moveTag(includeList, 0))
+    includeList.bind("<w>", lambda x: moveTag(includeList, 1))
 
     def moveTag(tag, destination, dialog=None):
+        if not isinstance(tag, str):
+            if not tag.curselection():
+                return
+            else:
+                tag = tag.get(tag.curselection()[0])
         if dialog:
             dialog.destroy()
         try:
@@ -921,7 +951,7 @@ def loadSelectTags(window):
     searchTag.bind("<KeyRelease>", onSearch)
     searchText.bind("<KeyRelease>", onSearch)
 
-    Button(frame, text="뒤로가기", command=onDestroy).grid(row=4, column=1, sticky='NSWE', padx=2, pady=2)
+    Checkbutton(frame, text="이 태그 분류를 기억하기", variable=Config.rememberTagSort).grid(row=4, column=1, sticky='NSWE')
 
     def loadTagList():
         if not messagebox.askyesno("태그 분류 불러오기",
@@ -1031,8 +1061,6 @@ def loadSelectExport(window):
         CreateToolTip(tmp, tooltip)
         tmp.grid(row=0, column=i)
 
-    Button(frame, text="뒤로가기", command=onDestroy).grid(row=8, column=0)
-
 
 def updateText():
     global mainTextVar
@@ -1058,6 +1086,9 @@ version = {EXTRACTOR_VERSION}
 
 
 if __name__ == '__main__':
+
+    with open("error_report.txt", 'w') as fout:
+        pass
 
     FRAME_EXIT = -1
     FRAME_MAIN = 0
@@ -1381,7 +1412,8 @@ if __name__ == '__main__':
                                      f"다음 폴더의 파일이 존재하여 작업을 중단하였습니다.\n{result[1][0]}\n\n" +
                                      f"이미 저장된 파일의 폴더 리스트는 아래와 같습니다.\n{WORD_NEWLINE.join(result[1][1])}")
             elif result[0] == 3:
-                messagebox.showerror("파일 저장 오류", "출력 파일의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
+                messagebox.showerror("파일 저장 오류",
+                                     "출력 파일의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
         else:
             result = exportXlsx()
             if result == 0:
@@ -1391,9 +1423,11 @@ if __name__ == '__main__':
             elif result == 2:
                 messagebox.showerror("파일 저장 오류", "엑셀 파일이 열려있어(혹은 쓰기 금지되어) 저장에 실패하였습니다.")
             elif result == 3:
-                messagebox.showerror("파일 저장 오류", "출력 파일의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
+                messagebox.showerror("파일 저장 오류",
+                                     "출력 파일의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
             elif result == 4:
-                messagebox.showerror("파일 저장 오류", "출력 폴더의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
+                messagebox.showerror("파일 저장 오류",
+                                     "출력 폴더의 이름에서 \\ / : * ? \" < > | 중 하나 이상의 문자열이 발견되었습니다. 해당 문자열을 제거해 주세요.")
             return
 
 
@@ -1408,6 +1442,7 @@ if __name__ == '__main__':
 
     convert_xlsx_2_xml_Btn = Button(frame, text="(XLSX -> XML)", command=convert_xlsx_2_xml)
     convert_xlsx_2_xml_Btn.grid(row=5, column=3, padx=10, pady=5, sticky='NSWE')
+
 
     def convert_xml_2_xlsx():
         if dirname := filedialog.askdirectory(initialdir='./'):
