@@ -25,6 +25,13 @@ EXPORT_XML_PLAIN = 0
 EXPORT_XML_ANNOTATION = 1
 EXPORT_XLSX = 2
 
+FRAME_EXIT = -1
+FRAME_MAIN = 0
+FRAME_LOCATION_SELECT = 1
+FRAME_MOD_SELECT = 2
+FRAME_NODE_CLASSIFICATION = 3
+FRAME_EXPORT_OPTION = 4
+
 
 class Configures:
     def __init__(self, fileName='config.dat'):
@@ -765,9 +772,9 @@ def loadSelectTags(window):
 
     def onDestroy():
         if Config.rememberTagSort.get():
-            Config.definedIncludes = list(set(Config.definedIncludes) | set(Config.includes)
+            Config.definedIncludes = list((set(Config.definedIncludes) | set(Config.includes))
                                           - set(Config.defaults) - set(Config.excludes))
-            Config.definedExcludes = list(set(Config.definedExcludes) | set(Config.excludes)
+            Config.definedExcludes = list((set(Config.definedExcludes) | set(Config.excludes))
                                           - set(Config.defaults) - set(Config.includes))
             Config.write()
 
@@ -1089,13 +1096,6 @@ if __name__ == '__main__':
 
     with open("error_report.txt", 'w') as fout:
         pass
-
-    FRAME_EXIT = -1
-    FRAME_MAIN = 0
-    FRAME_LOCATION_SELECT = 1
-    FRAME_MOD_SELECT = 2
-    FRAME_NODE_CLASSIFICATION = 3
-    FRAME_EXPORT_OPTION = 4
 
     parentDefs = {}
 
