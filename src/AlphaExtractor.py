@@ -17,7 +17,7 @@ LANGUAGE = 'Korean (한국어)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.7"
+EXTRACTOR_VERSION = "0.10.9"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -402,7 +402,7 @@ def loadSelectMod(window):
     for modPath in corePathList:
         try:
             pakageID = et.parse(modPath + '/About/About.xml').getroot().find('packageId').text
-        except (FileNotFoundError, ValueError, AttributeError):
+        except (FileNotFoundError, ValueError, AttributeError, et.ParseError):
             pakageID = "NULL"
         modsNameDict[f"    CORE   {sep}{modPath.split('/')[-1]}"] = modPath, f"{modPath.split('/')[-1]}", pakageID
     for modPath in manualModPathList + workshopModPathList:
@@ -416,12 +416,12 @@ def loadSelectMod(window):
                 code = " ??????????"
         try:
             pakageID = et.parse(modPath + '/About/About.xml').getroot().find('packageId').text
-        except (FileNotFoundError, ValueError, AttributeError):
-            pakageID = "NULL"
+        except (FileNotFoundError, ValueError, AttributeError, et.ParseError):
+            pakageID = "NULL(About.xml ERROR)"
         try:
             name = et.parse(modPath + '/About/About.xml').getroot().find('name').text
-        except (FileNotFoundError, ValueError, AttributeError):
-            name = modPath.split('/')[-1]
+        except (FileNotFoundError, ValueError, AttributeError, et.ParseError):
+            name = "#UNKNOWN# (About.xml ERROR)"
         modsNameDict[f"{code}{sep}{name}"] = modPath, f"{name} - {code.replace(' ', '')}", pakageID
     modsNameDictKeys = list(modsNameDict.keys())
     modsNameDictKeys.sort(key=lambda x: x.split(sep)[1])
@@ -466,7 +466,7 @@ def loadSelectMod(window):
                             if RIMWORLD_VERSION in eachVersionNode.tag or 'default' in eachVersionNode.tag:
                                 autoSelectIndices.append(len(extractableDirNameList) - 1)
 
-        except FileNotFoundError:
+        except (FileNotFoundError, et.ParseError):
             for eachLoad in [modPath] + glob.glob(f"{modPath}/*"):
                 if os.path.isdir(eachLoad):
                     for eachType in os.listdir(eachLoad):
