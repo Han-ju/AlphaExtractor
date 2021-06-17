@@ -17,7 +17,7 @@ LANGUAGE = 'Korean (한국어)'
 
 EXTRACTABLE_DIRS = ["Defs", "Languages", "Patches"]
 CONFIG_VERSION = 5
-EXTRACTOR_VERSION = "0.10.9"
+EXTRACTOR_VERSION = "0.10.10"
 WORD_NEWLINE = '\n'
 WORD_BACKSLASH = '\\'
 
@@ -625,7 +625,7 @@ def parse_recursive(parent, className, tag, lastTag=None, unKnownLiNo=False):
                 num_list += 1
             else:
                 yield from parse_recursive(child, className, tag + '.' + child.tag, child.tag)
-    elif parent.text and parent.text.replace('\n', '').replace(' ', ''):
+    elif parent.text and parent.text.replace('\n', '').replace('\t', '').replace(' ', '') and lastTag and tag:
         yield className, lastTag, tag, (parent.text.replace('&', '&amp;').replace('<', '&lt;') if parent.text else "")
 
 
